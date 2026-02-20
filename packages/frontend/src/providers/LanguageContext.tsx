@@ -104,6 +104,8 @@ const translations = {
         'hl.times': 'times!',
         'hl.gotIt': 'Got It',
         'hl.empty': 'Empty',
+        'hl.higher': 'HIGHER',
+        'hl.lower': 'LOWER',
 
         // Game 2: Cachito UI
         'ca.yourTurn': 'Your Turn!',
@@ -178,7 +180,7 @@ const translations = {
 
         // Rules
         'rules.title': 'Reglas del Juego',
-        'rules.higherLower': 'Mayor o Menor',
+        'rules.higherLower': 'Más arriba / Más abajo',
         'rules.cachito': 'Cachito',
         'rules.general': 'General',
         'rules.close': 'Cerrar',
@@ -187,7 +189,7 @@ const translations = {
         'hl.rule1': '1. Roles: Un jugador es el "Repartidor" y otro el "Adivinador".',
         'hl.rule2': '2. Primer Intento: El Adivinador adivina el valor EXACTO de la siguiente carta (Ases=1, Reyes=13).',
         'hl.rule3': '3. Si Adivina a la Primera: ¡El Repartidor bebe una copa entera!',
-        'hl.rule4': '4. Si Falla a la Primera: El Adivinador recibe una pista (Mayor o Menor) para un segundo intento.',
+        'hl.rule4': '4. Si Falla a la Primera: El Adivinador recibe una pista (Más arriba o Más abajo) para un segundo intento.',
         'hl.rule5': '5. Segundo Intento: Si adivina correctamente, el Repartidor bebe media copa.',
         'hl.rule6': '6. Si Falla a la Segunda: El Adivinador bebe un número de sorbos igual a la diferencia numérica entre su suposición y la carta real.',
         'hl.rule7': '7. Rotación: Después de resolver una carta, el rol de Adivinador rota. Cuando da la vuelta completa, cambia el Repartidor.',
@@ -248,6 +250,8 @@ const translations = {
         'hl.times': 'sorbos!',
         'hl.gotIt': 'Entendido',
         'hl.empty': 'Vacío',
+        'hl.higher': 'MÁS ARRIBA',
+        'hl.lower': 'MÁS ABAJO',
 
         // Game 2: Cachito UI
         'ca.yourTurn': '¡Tu Turno!',

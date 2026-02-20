@@ -137,7 +137,7 @@ export default function HigherLowerView() {
                         {gameState.lastGuessHint && gameState.attemptNumber === 2 && (
                             <div className="inline-block bg-blue-900/30 border border-blue-500/50 rounded-full px-4 py-1 shadow-[0_0_15px_rgba(59,130,246,0.3)] animate-pulse">
                                 <span className="text-blue-400 font-bold text-sm">
-                                    {t('hl.incorrectHint', { hint: gameState.lastGuessHint })}
+                                    {t('hl.incorrectHint', { hint: t(gameState.lastGuessHint === 'HIGHER' ? 'hl.higher' : 'hl.lower') })}
                                 </span>
                             </div>
                         )}
@@ -160,7 +160,7 @@ export default function HigherLowerView() {
                 <div className="flex flex-col items-center">
                     <p className="text-xs text-[#256af4] font-bold mb-2 uppercase tracking-widest hidden sm:block">{t('hl.current')}</p>
                     <div className="w-40 sm:w-56 h-[240px] sm:h-[320px] rounded-[32px] p-1 transform transition-all duration-500 hover:scale-[1.02] shadow-[0_0_50px_rgba(255,255,255,0.05)] cursor-pointer">
-                        {renderCard(gameState.currentCard, !gameState.currentCard && gameState.cardsRemaining > 0)}
+                        {renderCard(isMyTurnToGuess ? null : gameState.currentCard, isMyTurnToGuess || (!gameState.currentCard && gameState.cardsRemaining > 0))}
                     </div>
                 </div>
 
