@@ -596,13 +596,6 @@ function handleGeneral(room: Room, playerId: string, action: PlayerAction): Room
         nextState.lastRoll = roll;
         nextState.lastRollerId = playerId;
 
-        // Clear previous thumb master across board if a 4 is rolled
-        room.playerOrder.forEach(pid => {
-            if (room.players[pid].isThumbMaster && roll === 4) {
-                room.players[pid].isThumbMaster = false;
-            }
-        });
-
         if (roll === 6) {
             room.players[playerId].generalLevel += 1;
 
