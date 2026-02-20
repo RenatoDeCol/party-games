@@ -1,0 +1,27 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.*
+
+# testing
+/coverage
+
+# production
+/dist
+/build
+/.next/
+/out/
+
+# misc
+.DS_Store
+*.pem
+*.log
+.env
+.env.*
+
+# IDEs
+.vscode/
+.idea/
+
+# Backend specific
+packages/backend/dist/

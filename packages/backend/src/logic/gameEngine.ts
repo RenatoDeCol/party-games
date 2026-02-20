@@ -1,0 +1,425 @@
+// ==========================================
+// DATA CONTRACTS (From Blueprint)
+// ==========================================
+
+export type GameType = 'LOBBY' | 'HIGHER_LOWER' | 'CACHITO' | 'GENERAL';
+export type ConnectionState = 'CONNECTED' | 'DISCONNECTED';
+
+export interface Player {
+    id: string;
+    name: string;
+    avatarUrl?: string;
+    connectionState: ConnectionState;
+
+    // Cross-game
+    generalLevel: number;
+    isThumbMaster: boolean;
+
+    // Cachito
+    dice: number[];
+    diceCount: number;
+}
+
+export interface Room {
+    id: string;
+    hostId: string;
+    players: Record<string, Player>;
+    playerOrder: string[];
+    currentGame: GameType;
+    gameState: GameState;
+    createdAt: number;
+}
+
+export type GameState = LobbyState | HigherLowerState | CachitoState | GeneralState;
+
+export interface LobbyState {
+    status: 'WAITING' | 'STARTING';
+}
+
+export interface HigherLowerState {
+    deck: string[];
+    currentCard: string | null;
+    holderId: string;
+    guesserId: string;
+    attemptNumber: 1 | 2;
+    cardsRemaining: number;
+    discardPile: string[];
+    lastGuessHint?: 'HIGHER' | 'LOWER';
+    lastConsequence?: string; // e.g. "Holder drinks full cup", "Try again", "Sip 3"
+    lastConsequenceId?: string;
+    lastGuess?: number;
+    lastAnswer?: number;
+}
+
+export interface CachitoBid {
+    playerId: string;
+    quantity: number;
+    faceValue: number;
+    isAces: boolean;
+}
+
+export interface CachitoState {
+    status: 'BIDDING' | 'RESOLVING' | 'OBLIGADO';
+    currentTurnId: string;
+    currentBid: CachitoBid | null;
+    previousBid: CachitoBid | null;
+    isObligado: boolean;
+}
+
+export interface GeneralState {
+    currentTurnId: string;
+    lastRoll: number | null;
+    rollPending: boolean;
+}
+
+// ==========================================
+// ACTION PAYLOADS
+// ==========================================
+
+export type PlayerAction =
+    | { type: 'HL_GUESS'; guess: 'HIGHER' | 'LOWER' | 'EXACT'; number?: number }
+    | { type: 'CACHITO_BID'; quantity: number; faceValue: number; isAces: boolean }
+    | { type: 'CACHITO_DOUBT' }
+    | { type: 'CACHITO_MATCH' }
+    | { type: 'GENERAL_ROLL_DICE' }
+    | { type: 'GENERAL_USE_THUMB' }
+    | { type: 'GENERAL_CHOOSE_PLAYER'; targetId: string }
+    | { type: 'GENERAL_GAME_END' }
+    | { type: 'REORDER_PLAYERS'; playerOrder: string[] };
+
+
+// ==========================================
+// STEP 2: GAME-SPECIFIC VALIDATION & MATH
+// ==========================================
+
+// --- HIGHER/LOWER ---
+
+function getCardNumericValue(cardString: string): number {
+    const rank = cardString.slice(0, -1);
+    if (rank === 'A') return 1;
+    if (rank === 'K') return 13;
+    if (rank === 'Q') return 12;
+    if (rank === 'J') return 11;
+    return parseInt(rank, 10);
+}
+
+/**
+ * Calculates the sip penalty for the 2nd attempt in Higher/Lower
+ * Rule: Guesser sips equal to the numerical difference between guess and actual card.
+ */
+export function calculateHigherLowerPenalty(guessedNumber: number, actualCard: string): number {
+    const actualValue = getCardNumericValue(actualCard);
+    return Math.abs(guessedNumber - actualValue);
+}
+
+// --- CACHITO ---
+
+/**
+ * Strict mathematical validation for Cachito bids.
+ */
+export function validateCachitoBid(
+    currentBid: CachitoBid | null,
+    newBid: { quantity: number; faceValue: number; isAces: boolean },
+    isObligado: boolean
+): boolean {
+    // 1-die edge case: Obligado
+    if (isObligado) {
+        if (newBid.isAces) return false; // Reject aces
+
+        if (currentBid) {
+            if (newBid.faceValue !== currentBid.faceValue) return false;
+            if (newBid.quantity <= currentBid.quantity) return false;
+        } else {
+            if (newBid.quantity < 1) return false;
+            if (newBid.faceValue === 1) return false; // Aces can't be bid in obligado
+        }
+        return true;
+    }
+
+    // Normal bidding
+    if (!currentBid) {
+        if (newBid.quantity < 1) return false;
+        if (newBid.faceValue < 1 || newBid.faceValue > 6) return false;
+        if (newBid.isAces && newBid.faceValue !== 1) return false;
+        return true;
+    }
+
+    const { quantity: curQ, faceValue: curF, isAces: curA } = currentBid;
+    const { quantity: newQ, faceValue: newF, isAces: newA } = newBid;
+
+    // Face value validation constraint (1-6)
+    if (newF < 1 || newF > 6) return false;
+
+    // Transition to Aces
+    if (newA && !curA) {
+        if (newF !== 1) return false; // Aces must have faceValue = 1
+        return newQ >= Math.ceil(curQ / 2);
+    }
+
+    // Transition from Aces back to normal
+    if (!newA && curA) {
+        if (newF === 1) return false; // Normal can't be faceValue = 1
+        return newQ >= (curQ * 2) + 1;
+    }
+
+    // Aces to Aces
+    if (newA && curA) {
+        if (newF !== 1) return false; // Always 1
+        return newQ > curQ;
+    }
+
+    // Normal to Normal
+    if (!newA && !curA) {
+        if (newQ > curQ) {
+            // Raise Quantity: face value can be >= current
+            return newF >= curF;
+        } else if (newQ === curQ) {
+            // Raise Face Value
+            return newF > curF;
+        }
+    }
+
+    return false;
+}
+
+// --- GENERAL ---
+
+/**
+ * Validates if a user attempting to trigger the "Thumb Race" actually holds the isThumbMaster boolean.
+ */
+export function validateUseThumb(player: Player): boolean {
+    return player.isThumbMaster === true;
+}
+
+// Helper to advance turn in array (skips disconnected players)
+function getNextTurnId(currentTurnId: string, playerOrder: string[], activePlayers: Record<string, Player>): string {
+    const currentIndex = playerOrder.indexOf(currentTurnId);
+    for (let i = 1; i <= playerOrder.length; i++) {
+        const nextIndex = (currentIndex + i) % playerOrder.length;
+        const nextPlayerId = playerOrder[nextIndex];
+        if (activePlayers[nextPlayerId]?.connectionState === 'CONNECTED') {
+            return nextPlayerId;
+        }
+    }
+    return currentTurnId;
+}
+
+
+// ==========================================
+// STEP 1: CORE STATE MUTATION (Pure Reducers)
+// ==========================================
+
+/**
+ * Main pure function to reduce the overall Room state based on a player's action.
+ */
+export function reduceRoomState(room: Room, action: PlayerAction, actingPlayerId: string): Room {
+    // Clone to preserve immutability
+    const nextRoom: Room = {
+        ...room,
+        players: JSON.parse(JSON.stringify(room.players)),
+        playerOrder: [...room.playerOrder]
+    };
+
+    const actingPlayer = nextRoom.players[actingPlayerId];
+    if (!actingPlayer) return room; // Invalid player
+
+    switch (nextRoom.currentGame) {
+        case 'HIGHER_LOWER':
+            return handleHigherLower(nextRoom, actingPlayerId, action);
+        case 'CACHITO':
+            return handleCachito(nextRoom, actingPlayerId, action);
+        case 'GENERAL':
+            return handleGeneral(nextRoom, actingPlayerId, action);
+        case 'LOBBY':
+            return handleLobby(nextRoom, actingPlayerId, action);
+        default:
+            return nextRoom;
+    }
+}
+
+function handleLobby(room: Room, playerId: string, action: PlayerAction): Room {
+    if (action.type === 'REORDER_PLAYERS' && room.hostId === playerId) {
+        room.playerOrder = action.playerOrder;
+    }
+    return room;
+}
+
+function handleHigherLower(room: Room, playerId: string, action: PlayerAction): Room {
+    const state = room.gameState as HigherLowerState;
+
+    if (action.type !== 'HL_GUESS') return room;
+    if (state.guesserId !== playerId) return room;
+    if (!state.currentCard) return room;
+    if (action.guess !== 'EXACT' || typeof action.number !== 'number') return room;
+
+    const actualValue = getCardNumericValue(state.currentCard);
+    const nextState: HigherLowerState = { ...state, deck: [...state.deck], discardPile: [...state.discardPile] };
+
+    let rotateGuesser = false;
+    let cardDiscarded = false;
+
+    // Store the guess and actual value that were made on this action
+    nextState.lastGuess = action.number;
+    nextState.lastAnswer = actualValue;
+
+    if (action.number === actualValue) {
+        // Correct guess!
+        cardDiscarded = true;
+        rotateGuesser = true;
+        if (state.attemptNumber === 1) {
+            nextState.lastConsequence = "HOLDER_DRINK_FULL";
+        } else {
+            nextState.lastConsequence = "HOLDER_DRINK_HALF";
+        }
+        nextState.lastConsequenceId = Date.now().toString();
+        nextState.attemptNumber = 1;
+        nextState.lastGuessHint = undefined;
+        // nextState.lastGuess = undefined; // Keep them for the modal
+        // nextState.lastAnswer = undefined;
+    } else {
+        // Incorrect guess
+        if (state.attemptNumber === 1) {
+            nextState.attemptNumber = 2;
+            nextState.lastGuessHint = actualValue > action.number ? 'HIGHER' : 'LOWER';
+            nextState.lastConsequence = "TRY_AGAIN";
+            nextState.lastConsequenceId = Date.now().toString();
+        } else {
+            // Incorrect 2nd time
+            cardDiscarded = true;
+            rotateGuesser = true;
+            const penalty = calculateHigherLowerPenalty(action.number, state.currentCard);
+            nextState.lastConsequence = `GUESSER_SIP_${penalty}`;
+            nextState.lastConsequenceId = Date.now().toString();
+            nextState.attemptNumber = 1;
+            nextState.lastGuessHint = undefined;
+            // nextState.lastGuess = undefined;
+            // nextState.lastAnswer = undefined;
+        }
+    }
+
+    if (cardDiscarded) {
+        if (state.currentCard) {
+            nextState.discardPile.unshift(state.currentCard); // add to top of discard pile
+        }
+        nextState.currentCard = nextState.deck.pop() || null;
+        nextState.cardsRemaining = nextState.deck.length;
+    }
+
+    if (rotateGuesser && state.holderId !== 'SYSTEM') {
+        const nextGuesser = getNextTurnId(state.guesserId, room.playerOrder, room.players);
+        if (nextGuesser === state.holderId) {
+            // End of rotation, holder passes to next 
+            nextState.holderId = getNextTurnId(state.holderId, room.playerOrder, room.players);
+            nextState.guesserId = getNextTurnId(nextState.holderId, room.playerOrder, room.players);
+        } else {
+            nextState.guesserId = nextGuesser;
+        }
+    }
+
+    room.gameState = nextState;
+    return room;
+}
+
+function handleCachito(room: Room, playerId: string, action: PlayerAction): Room {
+    const state = room.gameState as CachitoState;
+
+    if (action.type !== 'CACHITO_BID' && action.type !== 'CACHITO_DOUBT' && action.type !== 'CACHITO_MATCH') return room;
+
+    // Enforce strict turn matching
+    if (state.currentTurnId !== playerId) return room;
+
+    const nextState: CachitoState = { ...state };
+
+    if (action.type === 'CACHITO_BID') {
+        const newBid = {
+            playerId,
+            quantity: action.quantity,
+            faceValue: action.faceValue,
+            isAces: action.isAces
+        };
+
+        if (!validateCachitoBid(state.currentBid, newBid, state.isObligado)) {
+            return room; // Invalid bid
+        }
+
+        nextState.previousBid = nextState.currentBid;
+        nextState.currentBid = newBid;
+        nextState.currentTurnId = getNextTurnId(playerId, room.playerOrder, room.players);
+        nextState.status = 'BIDDING';
+    }
+
+    if (action.type === 'CACHITO_DOUBT' || action.type === 'CACHITO_MATCH') {
+        nextState.status = 'RESOLVING';
+        // Resolution logic (dice counts updating) happens next in game lifecycle.
+    }
+
+    room.gameState = nextState;
+    return room;
+}
+
+function handleGeneral(room: Room, playerId: string, action: PlayerAction): Room {
+    const state = room.gameState as GeneralState;
+    const nextState: GeneralState = { ...state };
+
+    if (action.type === 'GENERAL_USE_THUMB') {
+        if (validateUseThumb(room.players[playerId])) {
+            room.players[playerId].isThumbMaster = false;
+        }
+        return room;
+    }
+
+    // Turn checks
+    if (state.currentTurnId !== playerId && action.type !== 'GENERAL_GAME_END') {
+        return room;
+    }
+
+    if (action.type === 'GENERAL_ROLL_DICE') {
+        if (state.rollPending) return room;
+
+        // Simulate dice roll (to be replaced with deterministic/injected seed if completely pure architecture is enforced outside)
+        const roll = Math.floor(Math.random() * 6) + 1;
+        nextState.lastRoll = roll;
+
+        // Clear previous thumb master across board if a 4 is rolled
+        room.playerOrder.forEach(pid => {
+            if (room.players[pid].isThumbMaster && roll === 4) {
+                room.players[pid].isThumbMaster = false;
+            }
+        });
+
+        if (roll === 6) {
+            room.players[playerId].generalLevel += 1;
+            nextState.rollPending = true; // Extra turn
+        } else if (roll === 5) {
+            nextState.rollPending = true; // Wait for HOST to end mini-game
+        } else if (roll === 4) {
+            room.players[playerId].isThumbMaster = true;
+            nextState.currentTurnId = getNextTurnId(playerId, room.playerOrder, room.players);
+        } else if (roll === 3) {
+            nextState.currentTurnId = getNextTurnId(playerId, room.playerOrder, room.players);
+        } else if (roll === 2) {
+            nextState.rollPending = true; // Wait for roller to choose target player
+        } else if (roll === 1) {
+            room.players[playerId].generalLevel = 0;
+            nextState.currentTurnId = getNextTurnId(playerId, room.playerOrder, room.players);
+        }
+    }
+
+    if (action.type === 'GENERAL_CHOOSE_PLAYER') {
+        if (state.rollPending && state.lastRoll === 2) {
+            nextState.rollPending = false;
+            nextState.currentTurnId = getNextTurnId(playerId, room.playerOrder, room.players);
+        }
+    }
+
+    if (action.type === 'GENERAL_GAME_END') {
+        // Only host can end a 5 roll
+        if (state.rollPending && state.lastRoll === 5 && room.hostId === playerId) {
+            nextState.rollPending = false;
+            nextState.currentTurnId = getNextTurnId(state.currentTurnId, room.playerOrder, room.players);
+        }
+    }
+
+    room.gameState = nextState;
+    return room;
+}
