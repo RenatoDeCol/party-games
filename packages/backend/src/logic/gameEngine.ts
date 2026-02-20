@@ -332,8 +332,8 @@ function handleCachito(room: Room, playerId: string, action: PlayerAction): Room
 
     if (action.type !== 'CACHITO_BID' && action.type !== 'CACHITO_DOUBT' && action.type !== 'CACHITO_MATCH' && action.type !== 'CACHITO_NEXT_ROUND') return room;
 
-    // Enforce strict turn matching
-    if (state.currentTurnId !== playerId) return room;
+    // Enforce strict turn matching for actions inside the round
+    if (state.currentTurnId !== playerId && action.type !== 'CACHITO_NEXT_ROUND') return room;
 
     const nextState: CachitoState = { ...state };
 

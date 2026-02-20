@@ -20,13 +20,52 @@ export default function CachitoView() {
     const currentTurnName = room.players[gameState.currentTurnId]?.name || 'Unknown';
     const myDice = me?.dice || [];
 
+    const getMinQuantity = (newF: number) => {
+        if (!gameState.currentBid) return 1;
+        const { quantity: curQ, faceValue: curF } = gameState.currentBid;
+        const curA = curF === 1;
+        const newA = newF === 1;
+
+        if (gameState.isObligado) {
+            return curQ + 1; // Can only increase quantity
+        }
+
+        if (newA && !curA) return Math.ceil(curQ / 2);
+        if (!newA && curA) return (curQ * 2) + 1;
+        if (newA && curA) return curQ + 1;
+        if (!newA && !curA) {
+            if (newF > curF) return curQ;
+            return curQ + 1;
+        }
+        return 1;
+    };
+
     // Initialize local bid state based on current bid
     useEffect(() => {
         if (gameState.currentBid) {
-            setLocalBidQuantity(gameState.currentBid.quantity + 1);
-            setLocalBidFace(gameState.currentBid.faceValue);
+            const nextFace = gameState.currentBid.faceValue;
+            setLocalBidFace(nextFace);
+            const minQ = getMinQuantity(nextFace);
+            if (localBidQuantity < minQ || localBidQuantity > minQ + 5) {
+                // snap to minimum to prevent invalid bids
+                setLocalBidQuantity(minQ);
+            }
         }
-    }, [gameState.currentBid]);
+    }, [gameState.currentBid, gameState.isObligado]);
+
+    const handleFaceChange = (delta: number) => {
+        if (gameState.isObligado) return; // Cannot change face in obligado
+
+        let newFace = localBidFace + delta;
+        if (newFace < 1) newFace = 6;
+        if (newFace > 6) newFace = 1;
+
+        setLocalBidFace(newFace);
+        const minQ = getMinQuantity(newFace);
+        if (localBidQuantity < minQ) {
+            setLocalBidQuantity(minQ);
+        }
+    };
 
     const handlePointerDown = () => {
         // Basic long press to prevent accidental flashes
@@ -134,7 +173,11 @@ export default function CachitoView() {
                             <div className="flex items-center justify-between">
                                 <span className="text-gray-400 font-bold uppercase text-sm tracking-widest">Quantity</span>
                                 <div className="flex items-center gap-4 bg-[#0A0A0A] p-2 rounded-2xl border border-gray-800">
-                                    <button onClick={() => setLocalBidQuantity(Math.max(1, localBidQuantity - 1))} className="w-12 h-12 bg-gray-800 rounded-xl text-2xl font-bold hover:bg-gray-700 active:bg-gray-600">-</button>
+                                    <button
+                                        onClick={() => setLocalBidQuantity(Math.max(getMinQuantity(localBidFace), localBidQuantity - 1))}
+                                        className="w-12 h-12 bg-gray-800 rounded-xl text-2xl font-bold hover:bg-gray-700 active:bg-gray-600 disabled:opacity-30 transition-opacity"
+                                        disabled={localBidQuantity <= getMinQuantity(localBidFace)}
+                                    >-</button>
                                     <span className="text-3xl font-black w-12 text-center">{localBidQuantity}</span>
                                     <button onClick={() => setLocalBidQuantity(localBidQuantity + 1)} className="w-12 h-12 bg-gray-800 rounded-xl text-2xl font-bold hover:bg-gray-700 active:bg-gray-600">+</button>
                                 </div>
@@ -145,9 +188,17 @@ export default function CachitoView() {
                             <div className="flex items-center justify-between">
                                 <span className="text-gray-400 font-bold uppercase text-sm tracking-widest">Face Value</span>
                                 <div className="flex items-center gap-4 bg-[#0A0A0A] p-2 rounded-2xl border border-gray-800">
-                                    <button onClick={() => setLocalBidFace(localBidFace > 1 ? localBidFace - 1 : 6)} className="w-12 h-12 bg-gray-800 rounded-xl text-2xl font-bold hover:bg-gray-700 active:bg-gray-600">-</button>
+                                    <button
+                                        onClick={() => handleFaceChange(-1)}
+                                        className="w-12 h-12 bg-gray-800 rounded-xl text-2xl font-bold hover:bg-gray-700 active:bg-gray-600 disabled:opacity-30 transition-opacity"
+                                        disabled={gameState.isObligado}
+                                    >-</button>
                                     <span className="text-4xl text-[#f59e0b] w-12 text-center drop-shadow-[0_0_10px_rgba(245,158,11,0.5)]">{['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'][localBidFace - 1]}</span>
-                                    <button onClick={() => setLocalBidFace(localBidFace < 6 ? localBidFace + 1 : 1)} className="w-12 h-12 bg-gray-800 rounded-xl text-2xl font-bold hover:bg-gray-700 active:bg-gray-600">+</button>
+                                    <button
+                                        onClick={() => handleFaceChange(1)}
+                                        className="w-12 h-12 bg-gray-800 rounded-xl text-2xl font-bold hover:bg-gray-700 active:bg-gray-600 disabled:opacity-30 transition-opacity"
+                                        disabled={gameState.isObligado}
+                                    >+</button>
                                 </div>
                             </div>
                         </div>
