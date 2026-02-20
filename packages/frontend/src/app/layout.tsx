@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { SocketProvider } from "@/providers/SocketContext";
+import { LanguageProvider } from "@/providers/LanguageContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -42,9 +43,11 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased touch-manipulation`}
       >
-        <SocketProvider>
-          {children}
-        </SocketProvider>
+        <LanguageProvider>
+          <SocketProvider>
+            {children}
+          </SocketProvider>
+        </LanguageProvider>
       </body>
     </html>
   );

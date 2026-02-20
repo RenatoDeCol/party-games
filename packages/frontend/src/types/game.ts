@@ -68,11 +68,19 @@ export interface CachitoState {
     } | null;
 }
 
+export interface RuleTieBreaker {
+    tiedGenerals: string[];
+    suggestions: Record<string, string>;
+    votes: Record<string, string>;
+}
+
 export interface GeneralState {
     currentTurnId: string;
     lastRoll: number | null;
+    lastRollerId?: string | null;
     rollPending: boolean;
     activeThumbRace?: boolean;
     thumbRaceParticipants?: string[];
-    rules?: string[];
+    activeRule?: string | null;
+    ruleTieBreaker?: RuleTieBreaker | null;
 }

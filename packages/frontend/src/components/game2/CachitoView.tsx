@@ -2,10 +2,12 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useGame } from '@/hooks/useGame';
+import { useLanguage } from '@/providers/LanguageContext';
 import { CachitoState } from '@/types/game';
 
 export default function CachitoView() {
     const { room, me, emitAction } = useGame();
+    const { t } = useLanguage();
     const [isRevealed, setIsRevealed] = useState(false);
     const [localBidQuantity, setLocalBidQuantity] = useState(1);
     const [localBidFace, setLocalBidFace] = useState(2);
@@ -106,18 +108,18 @@ export default function CachitoView() {
                 <div className="text-center mb-6">
                     {isMyTurn ? (
                         <h1 className="text-3xl font-black text-white px-6 py-2 bg-gradient-to-r from-[#930df2] to-[#dc2626] rounded-3xl inline-block shadow-lg shadow-[#930df2]/30 animate-pulse">
-                            Your Turn!
+                            {t('ca.yourTurn')}
                         </h1>
                     ) : (
                         <h1 className="text-2xl font-bold text-gray-300">
-                            {currentTurnName}'s Turn
+                            {t('ca.isTurn', { name: currentTurnName })}
                         </h1>
                     )}
                 </div>
 
                 {/* Current Bid Display */}
                 <div className="bg-[#141414] border border-[#930df2]/50 p-6 rounded-3xl shadow-[0_0_30px_rgba(147,13,242,0.15)] mb-6 text-center">
-                    <p className="text-gray-400 font-bold uppercase tracking-widest text-sm mb-2">Current Highest Bid</p>
+                    <p className="text-gray-400 font-bold uppercase tracking-widest text-sm mb-2">{t('ca.currentBid')}</p>
                     {gameState.currentBid ? (
                         <div className="text-5xl font-black text-white flex items-center justify-center gap-4">
                             <span>{gameState.currentBid.quantity}x</span>
@@ -126,7 +128,7 @@ export default function CachitoView() {
                             </span>
                         </div>
                     ) : (
-                        <div className="text-3xl font-bold text-gray-500 italic">No bids yet</div>
+                        <div className="text-3xl font-bold text-gray-500 italic">{t('ca.noBids')}</div>
                     )}
                     {gameState.isObligado && <p className="text-red-500 font-bold mt-2 animate-bounce">OBLIGADO!</p>}
                 </div>
@@ -138,7 +140,7 @@ export default function CachitoView() {
                         onClick={() => setIsBidding(true)}
                         className="w-full min-h-[56px] rounded-2xl bg-gradient-to-r from-[#8b5cf6] to-[#6d28d9] hover:brightness-110 disabled:opacity-40 disabled:grayscale text-white text-xl font-bold shadow-[0_5px_20px_rgba(139,92,246,0.4)] transition-all active:scale-[0.98]"
                     >
-                        Raise Bid
+                        {t('ca.raiseBid')}
                     </button>
                     <div className="flex gap-4">
                         <button
@@ -146,14 +148,14 @@ export default function CachitoView() {
                             onClick={() => emitAction('CACHITO_DOUBT')}
                             className="flex-1 min-h-[56px] rounded-2xl bg-gradient-to-r from-[#ef4444] to-[#b91c1c] hover:brightness-110 disabled:opacity-40 disabled:grayscale text-white text-xl font-bold shadow-[0_5px_20px_rgba(239,68,68,0.4)] transition-all active:scale-[0.98]"
                         >
-                            Doubt (Dudo)
+                            {t('ca.doubt')}
                         </button>
                         <button
                             disabled={!isMyTurn || !gameState.currentBid}
                             onClick={() => emitAction('CACHITO_MATCH')}
                             className="flex-1 min-h-[56px] rounded-2xl bg-gradient-to-r from-[#f59e0b] to-[#d97706] hover:brightness-110 disabled:opacity-40 disabled:grayscale text-white text-xl font-bold shadow-[0_5px_20px_rgba(245,158,11,0.4)] transition-all active:scale-[0.98]"
                         >
-                            Match (Calzo)
+                            {t('ca.match')}
                         </button>
                     </div>
                 </div>
@@ -164,13 +166,13 @@ export default function CachitoView() {
                 <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm animate-in fade-in">
                     <div className="w-full max-w-md bg-[#121212] rounded-t-[40px] border-t border-gray-700 p-8 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] animate-in slide-in-from-bottom-[100%] duration-300">
                         <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-2xl font-black text-white">Raise Bid</h2>
+                            <h2 className="text-2xl font-black text-white">{t('ca.raiseBid')}</h2>
                             <button onClick={() => setIsBidding(false)} className="text-gray-400 p-2 rounded-full hover:bg-gray-800">✕</button>
                         </div>
 
                         <div className="bg-[#1A1A1A] rounded-3xl p-6 border border-gray-800 mb-6 flex flex-col gap-6">
                             <div className="flex items-center justify-between">
-                                <span className="text-gray-400 font-bold uppercase text-sm tracking-widest">Quantity</span>
+                                <span className="text-gray-400 font-bold uppercase text-sm tracking-widest">{t('ca.quantity')}</span>
                                 <div className="flex items-center gap-4 bg-[#0A0A0A] p-2 rounded-2xl border border-gray-800">
                                     <button
                                         onClick={() => setLocalBidQuantity(Math.max(getMinQuantity(localBidFace), localBidQuantity - 1))}
@@ -185,7 +187,7 @@ export default function CachitoView() {
                             <hr className="border-gray-800" />
 
                             <div className="flex items-center justify-between">
-                                <span className="text-gray-400 font-bold uppercase text-sm tracking-widest">Face Value</span>
+                                <span className="text-gray-400 font-bold uppercase text-sm tracking-widest">{t('ca.faceValue')}</span>
                                 <div className="flex items-center gap-4 bg-[#0A0A0A] p-2 rounded-2xl border border-gray-800">
                                     <button
                                         onClick={() => handleFaceChange(-1)}
@@ -206,7 +208,7 @@ export default function CachitoView() {
                             onClick={handleBid}
                             className="w-full min-h-[64px] rounded-full bg-gradient-to-r from-[#8b5cf6] to-[#6d28d9] text-white text-2xl font-black shadow-[0_10px_30px_rgba(139,92,246,0.5)] transition-all active:scale-[0.96] active:translate-y-2 border-b-4 border-b-[#4c1d95] uppercase tracking-wide"
                         >
-                            Confirm Bid
+                            {t('ca.confirmBid')}
                         </button>
                     </div>
                 </div>
@@ -216,7 +218,7 @@ export default function CachitoView() {
             {gameState.status === 'RESOLVING' && gameState.revealData && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in p-6">
                     <div className="w-full max-w-md bg-[#121212] rounded-[40px] border border-gray-700 p-8 shadow-[0_20px_50px_rgba(147,13,242,0.3)] flex flex-col items-center text-center animate-in zoom-in-95 duration-300">
-                        <h2 className="text-3xl font-black text-white mb-4">Round Over!</h2>
+                        <h2 className="text-3xl font-black text-white mb-4">{t('ca.roundOver')}</h2>
 
                         <div className="w-24 h-24 bg-gradient-to-tr from-[#930df2] to-[#dc2626] rounded-full flex items-center justify-center mb-6 shadow-lg shadow-[#930df2]/30">
                             <span className="text-5xl font-black text-white">{gameState.revealData.totalFound}</span>
@@ -230,7 +232,7 @@ export default function CachitoView() {
                             onClick={() => emitAction('CACHITO_NEXT_ROUND')}
                             className="w-full min-h-[64px] rounded-full bg-gradient-to-r from-[#22c55e] to-[#16a34a] hover:brightness-110 text-white text-2xl font-black shadow-[0_10px_30px_rgba(34,197,94,0.4)] transition-all active:scale-[0.96] border-b-4 border-b-[#15803d] uppercase tracking-wide"
                         >
-                            Next Round
+                            {t('ca.nextRound')}
                         </button>
                     </div>
                 </div>
@@ -251,13 +253,13 @@ export default function CachitoView() {
                     {!isRevealed ? (
                         <div className="flex flex-col items-center justify-center text-gray-500">
                             <span className="text-6xl mb-4 opacity-50">🔒</span>
-                            <p className="font-bold text-xl tracking-wide">PRESS & HOLD TO PEEK</p>
-                            <p className="text-sm mt-2 opacity-60">Keep hidden from other players</p>
+                            <p className="font-bold text-xl tracking-wide">{t('ca.pressHold')}</p>
+                            <p className="text-sm mt-2 opacity-60">{t('ca.keepHidden')}</p>
                         </div>
                     ) : (
                         <div className="flex flex-wrap justify-center gap-4 p-8 animate-in fade-in duration-200">
                             {myDice.map((val, idx) => renderDice(val, idx))}
-                            {myDice.length === 0 && <p className="text-xl font-bold text-red-400">You have no dice left!</p>}
+                            {myDice.length === 0 && <p className="text-xl font-bold text-red-400">{t('ca.noDice')}</p>}
                         </div>
                     )}
                 </div>

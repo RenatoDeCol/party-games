@@ -2,10 +2,14 @@
 
 import React, { useState } from 'react';
 import { useGame } from '@/hooks/useGame';
+import { useLanguage } from '@/providers/LanguageContext';
+import RulesModal from '@/components/shared/RulesModal';
 
 export default function Header() {
     const { room, leaveRoom, emitAction, me, isHost } = useGame();
+    const { t, language, setLanguage } = useLanguage();
     const [showPlayersMenu, setShowPlayersMenu] = useState(false);
+    const [showRules, setShowRules] = useState(false);
 
     if (!room) return null;
 
@@ -34,15 +38,29 @@ export default function Header() {
 
     return (
         <div className="absolute top-0 left-0 w-full p-4 flex justify-between items-center z-50">
-            <button
-                onClick={handleLeave}
-                className="px-4 py-2 bg-black/40 backdrop-blur-md rounded-2xl text-white font-bold border border-white/20 shadow-lg hover:bg-red-500/80 hover:border-red-500 transition-all active:scale-95 flex items-center gap-2"
-            >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
-                </svg>
-                Back
-            </button>
+            <div className="flex gap-2">
+                <button
+                    onClick={handleLeave}
+                    className="px-4 py-2 bg-black/40 backdrop-blur-md rounded-2xl text-white font-bold border border-white/20 shadow-lg hover:bg-red-500/80 hover:border-red-500 transition-all active:scale-95 flex items-center gap-2"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
+                    </svg>
+                    {t('header.back')}
+                </button>
+                <button
+                    onClick={() => setShowRules(true)}
+                    className="px-4 py-2 bg-[#1A1A1A]/80 backdrop-blur-md rounded-2xl text-gray-300 font-bold border border-gray-800 shadow-lg hover:bg-[#252525] hover:text-white transition-all active:scale-95 flex items-center gap-2"
+                >
+                    {t('header.rules')}
+                </button>
+                <button
+                    onClick={() => setLanguage(language === 'en' ? 'es' : 'en')}
+                    className="px-3 py-2 bg-[#1A1A1A]/80 backdrop-blur-md rounded-2xl text-gray-300 font-bold border border-gray-800 shadow-lg hover:bg-[#252525] hover:text-white transition-all active:scale-95 flex items-center justify-center min-w-[48px]"
+                >
+                    {language === 'en' ? 'ES' : 'EN'}
+                </button>
+            </div>
 
             <div className="flex gap-2">
                 <button
@@ -57,7 +75,7 @@ export default function Header() {
 
                 <div className="bg-[#1A1A1A]/80 backdrop-blur-md px-4 py-2 rounded-2xl border border-gray-800 shadow-lg flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                    <span className="text-gray-300 font-bold uppercase tracking-widest text-sm">Room</span>
+                    <span className="text-gray-300 font-bold uppercase tracking-widest text-sm">{t('header.room')}</span>
                     <span className="text-white font-black tracking-widest">{room.id}</span>
                 </div>
             </div>
@@ -67,7 +85,7 @@ export default function Header() {
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
                     <div className="w-full max-w-sm bg-[#141414] border border-gray-800 rounded-3xl shadow-2xl flex flex-col max-h-[80vh] overflow-hidden animate-zoom-in">
                         <div className="p-4 border-b border-gray-800 flex justify-between items-center bg-[#1a1a1a]">
-                            <h2 className="text-xl font-black text-white px-2">Players</h2>
+                            <h2 className="text-xl font-black text-white px-2">{t('header.players')}</h2>
                             <button onClick={() => setShowPlayersMenu(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-800 hover:bg-red-500/80 hover:text-white text-gray-400 font-bold transition-colors">✕</button>
                         </div>
                         <div className="p-4 overflow-y-auto space-y-3 flex-1">
@@ -90,9 +108,9 @@ export default function Header() {
                                                         <span className={`font-bold ${isCurrentUser ? 'text-white' : (isDisconnected ? 'text-gray-500 italic' : 'text-gray-200')}`}>
                                                             {player.name} {isCurrentUser && "(You)"}
                                                         </span>
-                                                        {isDisconnected && <span className="text-[10px] bg-red-500/20 text-red-500 px-2 py-0.5 rounded-full uppercase font-bold tracking-wider">Away</span>}
+                                                        {isDisconnected && <span className="text-[10px] bg-red-500/20 text-red-500 px-2 py-0.5 rounded-full uppercase font-bold tracking-wider">{t('header.away')}</span>}
                                                     </div>
-                                                    {isRoomHost && <span className="text-[10px] text-amber-500 uppercase font-black tracking-widest">Host</span>}
+                                                    {isRoomHost && <span className="text-[10px] text-amber-500 uppercase font-black tracking-widest">{t('header.host')}</span>}
                                                 </div>
                                             </div>
 
@@ -117,6 +135,12 @@ export default function Header() {
                     </div>
                 </div>
             )}
+
+            <RulesModal
+                isOpen={showRules}
+                onClose={() => setShowRules(false)}
+                initialTab={room.currentGame !== 'LOBBY' ? room.currentGame : 'HIGHER_LOWER'}
+            />
         </div>
     );
 }

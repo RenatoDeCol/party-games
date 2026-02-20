@@ -71,13 +71,21 @@ export interface CachitoState {
     } | null;
 }
 
+export interface RuleTieBreaker {
+    tiedGenerals: string[];
+    suggestions: Record<string, string>;
+    votes: Record<string, string>;
+}
+
 export interface GeneralState {
     currentTurnId: string;
     lastRoll: number | null;
+    lastRollerId?: string | null;
     rollPending: boolean;
     activeThumbRace?: boolean;
     thumbRaceParticipants?: string[];
-    rules?: string[];
+    activeRule?: string | null;
+    ruleTieBreaker?: RuleTieBreaker | null;
 }
 
 // ==========================================
@@ -95,6 +103,8 @@ export type PlayerAction =
     | { type: 'GENERAL_THUMB_RACE_CLICK' }
     | { type: 'GENERAL_CHOOSE_PLAYER'; targetId: string }
     | { type: 'GENERAL_MAKE_RULE'; rule: string }
+    | { type: 'GENERAL_SUGGEST_RULE'; rule: string }
+    | { type: 'GENERAL_VOTE_RULE'; targetId: string }
     | { type: 'GENERAL_GAME_END' }
     | { type: 'REORDER_PLAYERS'; playerOrder: string[] }
     | { type: 'KICK_PLAYER'; targetId: string };
@@ -524,9 +534,50 @@ function handleGeneral(room: Room, playerId: string, action: PlayerAction): Room
     }
 
     if (action.type === 'GENERAL_MAKE_RULE') {
-        if (state.rollPending && state.lastRoll === 6 && state.currentTurnId === playerId) {
-            nextState.rules = [...(state.rules || []), action.rule];
+        if (state.rollPending && state.lastRoll === 6 && state.currentTurnId === playerId && !state.ruleTieBreaker) {
+            nextState.activeRule = action.rule;
             nextState.rollPending = false;
+        }
+        room.gameState = nextState;
+        return room;
+    }
+
+    if (action.type === 'GENERAL_SUGGEST_RULE') {
+        if (state.ruleTieBreaker && state.ruleTieBreaker.tiedGenerals.includes(playerId)) {
+            nextState.ruleTieBreaker = { ...state.ruleTieBreaker, suggestions: { ...state.ruleTieBreaker.suggestions, [playerId]: action.rule } };
+        }
+        room.gameState = nextState;
+        return room;
+    }
+
+    if (action.type === 'GENERAL_VOTE_RULE') {
+        if (state.ruleTieBreaker && state.ruleTieBreaker.suggestions[action.targetId]) {
+            nextState.ruleTieBreaker = { ...state.ruleTieBreaker, votes: { ...state.ruleTieBreaker.votes, [playerId]: action.targetId } };
+
+            const activePlayers = room.playerOrder.filter(pid => room.players[pid].connectionState === 'CONNECTED');
+
+            // Check if everyone has voted
+            if (Object.keys(nextState.ruleTieBreaker.votes).length >= activePlayers.length) {
+                // Tally 
+                const counts: Record<string, number> = {};
+                let maxVotes = 0;
+                Object.values(nextState.ruleTieBreaker.votes).forEach(vote => {
+                    counts[vote] = (counts[vote] || 0) + 1;
+                    if (counts[vote] > maxVotes) maxVotes = counts[vote];
+                });
+
+                const winners = Object.keys(counts).filter(k => counts[k] === maxVotes);
+                let winningGeneralId = winners[0];
+
+                if (winners.length > 1 || winners.length === 0) {
+                    const fallbackArray = winners.length > 0 ? winners : state.ruleTieBreaker.tiedGenerals;
+                    winningGeneralId = fallbackArray[Math.floor(Math.random() * fallbackArray.length)];
+                }
+
+                nextState.activeRule = state.ruleTieBreaker.suggestions[winningGeneralId];
+                nextState.ruleTieBreaker = null;
+                nextState.rollPending = false;
+            }
         }
         room.gameState = nextState;
         return room;
@@ -543,6 +594,7 @@ function handleGeneral(room: Room, playerId: string, action: PlayerAction): Room
         // Simulate dice roll (to be replaced with deterministic/injected seed if completely pure architecture is enforced outside)
         const roll = Math.floor(Math.random() * 6) + 1;
         nextState.lastRoll = roll;
+        nextState.lastRollerId = playerId;
 
         // Clear previous thumb master across board if a 4 is rolled
         room.playerOrder.forEach(pid => {
@@ -553,7 +605,25 @@ function handleGeneral(room: Room, playerId: string, action: PlayerAction): Room
 
         if (roll === 6) {
             room.players[playerId].generalLevel += 1;
-            nextState.rollPending = true; // Extra turn
+
+            const maxLevel = Math.max(...Object.values(room.players).map(p => p.generalLevel));
+            const tiedGenerals = Object.values(room.players).filter(p => p.generalLevel === maxLevel).map(p => p.id);
+
+            // Is the roller part of the top tier now?
+            if (maxLevel === room.players[playerId].generalLevel) {
+                if (tiedGenerals.length > 1) {
+                    nextState.rollPending = true;
+                    nextState.ruleTieBreaker = {
+                        tiedGenerals,
+                        suggestions: {},
+                        votes: {}
+                    };
+                } else {
+                    nextState.rollPending = true; // Single general makes rule
+                }
+            } else {
+                nextState.rollPending = false; // Just regular extra turn for lower levels
+            }
         } else if (roll === 5) {
             nextState.rollPending = true; // Wait for HOST to end mini-game
         } else if (roll === 4) {

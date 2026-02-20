@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { useGame } from '@/hooks/useGame';
+import { useLanguage } from '@/providers/LanguageContext';
 import { HigherLowerState } from '@/types/game';
 
 const CARD_VALUES = [
@@ -22,6 +23,7 @@ const getCardValue = (cardCode: string) => {
 
 export default function HigherLowerView() {
     const { room, me, emitAction } = useGame();
+    const { t } = useLanguage();
     const [showConsequenceModal, setShowConsequenceModal] = React.useState(false);
 
     if (!room || room.currentGame !== 'HIGHER_LOWER') return null;
@@ -41,7 +43,7 @@ export default function HigherLowerView() {
     // Helper to render card
     const renderCard = (cardCode: string | null, isBack = false) => {
         if (!cardCode && !isBack) {
-            return <div className="text-gray-500 font-bold text-xl h-full flex items-center justify-center">Empty</div>;
+            return <div className="text-gray-500 font-bold text-xl h-full flex items-center justify-center">{t('hl.empty')}</div>;
         }
 
         if (isBack) {
@@ -106,22 +108,22 @@ export default function HigherLowerView() {
             <div className="w-full max-w-md pt-20 text-center space-y-4 relative z-10">
                 {isMyTurnToGuess ? (
                     <h1 className="text-2xl sm:text-3xl font-black text-white px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-3xl inline-block shadow-lg shadow-purple-500/30 animate-pulse">
-                        Your Turn to Guess!
+                        {t('hl.yourTurn')}
                     </h1>
                 ) : (
                     <h1 className="text-xl sm:text-2xl font-bold text-gray-300">
-                        {guesserName} is guessing...
+                        {t('hl.isGuessing', { name: guesserName })}
                     </h1>
                 )}
 
                 <div className="flex justify-between items-center bg-[#1A1A1A] p-4 rounded-3xl border border-gray-800 shadow-inner">
                     <div className="text-left">
-                        <p className="text-xs text-gray-400 uppercase tracking-wider font-bold">Holder</p>
+                        <p className="text-xs text-gray-400 uppercase tracking-wider font-bold">{t('hl.holder')}</p>
                         <p className="text-lg font-semibold text-[#0d9488]">{holderName}</p>
                     </div>
                     <div className="text-center px-4 py-1 bg-[#2a1a10] rounded-full border border-[#f49d25]/30">
                         <span className="text-[#f49d25] font-black text-sm uppercase tracking-wide">
-                            Cards: {gameState.cardsRemaining}
+                            {t('hl.cards', { count: gameState.cardsRemaining })}
                         </span>
                     </div>
                 </div>
@@ -130,12 +132,12 @@ export default function HigherLowerView() {
                 <div className="flex flex-col gap-2 items-center justify-center">
                     <div className="flex gap-2">
                         <div className="inline-block bg-[#1A0A0A] border border-red-500/50 rounded-full px-4 py-1 shadow-[0_0_15px_rgba(239,68,68,0.3)]">
-                            <span className="text-red-400 font-bold text-sm">Attempt {gameState.attemptNumber}/2</span>
+                            <span className="text-red-400 font-bold text-sm">{t('hl.attempt', { num: gameState.attemptNumber })}</span>
                         </div>
                         {gameState.lastGuessHint && gameState.attemptNumber === 2 && (
                             <div className="inline-block bg-blue-900/30 border border-blue-500/50 rounded-full px-4 py-1 shadow-[0_0_15px_rgba(59,130,246,0.3)] animate-pulse">
                                 <span className="text-blue-400 font-bold text-sm">
-                                    ❌ Incorrect! The card is {gameState.lastGuessHint}!
+                                    {t('hl.incorrectHint', { hint: gameState.lastGuessHint })}
                                 </span>
                             </div>
                         )}
@@ -148,7 +150,7 @@ export default function HigherLowerView() {
 
                 {/* Discard Pile (Previous Card) */}
                 <div className="flex flex-col items-center">
-                    <p className="text-xs text-gray-500 font-bold mb-2 uppercase tracking-widest hidden sm:block">Last Card</p>
+                    <p className="text-xs text-gray-500 font-bold mb-2 uppercase tracking-widest hidden sm:block">{t('hl.lastCard')}</p>
                     <div className="w-24 sm:w-32 h-[140px] sm:h-[180px] rounded-2xl opacity-70 scale-90 sm:scale-100 shadow-[0_0_20px_rgba(0,0,0,0.8)]">
                         {lastDiscard ? renderCard(lastDiscard, false) : renderCard(null, false)}
                     </div>
@@ -156,7 +158,7 @@ export default function HigherLowerView() {
 
                 {/* Main Active Card */}
                 <div className="flex flex-col items-center">
-                    <p className="text-xs text-[#256af4] font-bold mb-2 uppercase tracking-widest hidden sm:block">Current</p>
+                    <p className="text-xs text-[#256af4] font-bold mb-2 uppercase tracking-widest hidden sm:block">{t('hl.current')}</p>
                     <div className="w-40 sm:w-56 h-[240px] sm:h-[320px] rounded-[32px] p-1 transform transition-all duration-500 hover:scale-[1.02] shadow-[0_0_50px_rgba(255,255,255,0.05)] cursor-pointer">
                         {renderCard(gameState.currentCard, !gameState.currentCard && gameState.cardsRemaining > 0)}
                     </div>
@@ -167,7 +169,7 @@ export default function HigherLowerView() {
             {/* Action Grid (Guesser Only) */}
             {isMyTurnToGuess ? (
                 <div className="w-full max-w-md relative z-10 animate-fade-in-up">
-                    <p className="text-center text-sm text-gray-400 mb-3 font-medium uppercase tracking-widest">Select your guess</p>
+                    <p className="text-center text-sm text-gray-400 mb-3 font-medium uppercase tracking-widest">{t('hl.selectGuess')}</p>
                     <div className="grid grid-cols-5 sm:grid-cols-7 gap-2">
                         {CARD_VALUES.map((cv) => {
                             const discardedCount = discardCounts[cv.val];
@@ -205,7 +207,7 @@ export default function HigherLowerView() {
                 </div>
             ) : (
                 <div className="w-full max-w-md text-center py-8 text-gray-500 font-semibold relative z-10">
-                    {isMyTurnToHold ? "You are the Holder. Watch them sweat!" : "Waiting for guess..."}
+                    {isMyTurnToHold ? t('hl.youAreHolder') : t('hl.waitingForGuess')}
                 </div>
             )}
             {/* Consequence Modal */}
@@ -215,33 +217,33 @@ export default function HigherLowerView() {
                         {gameState.lastConsequence === "HOLDER_DRINK_FULL" && (
                             <div className="space-y-4">
                                 <div className="text-6xl animate-bounce">🍺</div>
-                                <h3 className="text-2xl font-black text-green-400 uppercase tracking-wide">1st Try Win!</h3>
-                                <p className="text-gray-300">Guess: <span className="text-white font-bold">{gameState.lastGuess}</span> | Card: <span className="text-white font-bold">{gameState.lastAnswer}</span></p>
-                                <p className="text-gray-300">Holder drinks their <span className="font-bold text-white">FULL cup!</span></p>
+                                <h3 className="text-2xl font-black text-green-400 uppercase tracking-wide">{t('hl.1stTryWin')}</h3>
+                                <p className="text-gray-300">{t('hl.guess')} <span className="text-white font-bold">{gameState.lastGuess}</span> | {t('hl.card')} <span className="text-white font-bold">{gameState.lastAnswer}</span></p>
+                                <p className="text-gray-300">{t('hl.holderDrinks')}<span className="font-bold text-white">{t('hl.fullCup')}</span></p>
                             </div>
                         )}
                         {gameState.lastConsequence === "HOLDER_DRINK_HALF" && (
                             <div className="space-y-4">
                                 <div className="text-6xl">🍻</div>
-                                <h3 className="text-2xl font-black text-green-400 uppercase tracking-wide">2nd Try Win!</h3>
-                                <p className="text-gray-300">Guess: <span className="text-white font-bold">{gameState.lastGuess}</span> | Card: <span className="text-white font-bold">{gameState.lastAnswer}</span></p>
-                                <p className="text-gray-300">Holder drinks <span className="font-bold text-white">HALF cup.</span></p>
+                                <h3 className="text-2xl font-black text-green-400 uppercase tracking-wide">{t('hl.2ndTryWin')}</h3>
+                                <p className="text-gray-300">{t('hl.guess')} <span className="text-white font-bold">{gameState.lastGuess}</span> | {t('hl.card')} <span className="text-white font-bold">{gameState.lastAnswer}</span></p>
+                                <p className="text-gray-300">{t('hl.holderDrinks')}<span className="font-bold text-white">{t('hl.halfCup')}</span></p>
                             </div>
                         )}
                         {gameState.lastConsequence === "TRY_AGAIN" && (
                             <div className="space-y-4">
                                 <div className="text-6xl">🤔</div>
-                                <h3 className="text-2xl font-black text-yellow-400 uppercase tracking-wide">Incorrect</h3>
-                                <p className="text-gray-300">Guess: <span className="text-white font-bold">{gameState.lastGuess}</span> | Card: <span className="text-white font-bold">???</span></p>
-                                <p className="text-gray-300">Try again using the Hint!</p>
+                                <h3 className="text-2xl font-black text-yellow-400 uppercase tracking-wide">{t('hl.incorrect')}</h3>
+                                <p className="text-gray-300">{t('hl.guess')} <span className="text-white font-bold">{gameState.lastGuess}</span> | {t('hl.card')} <span className="text-white font-bold">???</span></p>
+                                <p className="text-gray-300">{t('hl.tryAgain')}</p>
                             </div>
                         )}
                         {gameState.lastConsequence.startsWith("GUESSER_SIP_") && (
                             <div className="space-y-4">
                                 <div className="text-6xl animate-shake">💀</div>
-                                <h3 className="text-2xl font-black text-red-500 uppercase tracking-wide">Ouch!</h3>
-                                <p className="text-gray-300">Guess: <span className="text-white font-bold">{gameState.lastGuess}</span> | Card: <span className="text-white font-bold">{gameState.lastAnswer}</span></p>
-                                <p className="text-gray-300">Guesser sips <span className="text-2xl font-black text-red-400 mx-1">{gameState.lastConsequence.split('_')[2]}</span> times!</p>
+                                <h3 className="text-2xl font-black text-red-500 uppercase tracking-wide">{t('hl.ouch')}</h3>
+                                <p className="text-gray-300">{t('hl.guess')} <span className="text-white font-bold">{gameState.lastGuess}</span> | {t('hl.card')} <span className="text-white font-bold">{gameState.lastAnswer}</span></p>
+                                <p className="text-gray-300">{t('hl.guesserSips')} <span className="text-2xl font-black text-red-400 mx-1">{gameState.lastConsequence.split('_')[2]}</span> {t('hl.times')}</p>
                             </div>
                         )}
 
@@ -249,7 +251,7 @@ export default function HigherLowerView() {
                             onClick={() => setShowConsequenceModal(false)}
                             className="mt-8 w-full py-4 rounded-xl bg-gradient-to-tr from-gray-800 to-gray-700 hover:from-blue-600 hover:to-indigo-600 text-white font-bold text-xl transition-all shadow-lg active:scale-95 border-b-4 border-gray-900 hover:border-blue-900"
                         >
-                            Got It
+                            {t('hl.gotIt')}
                         </button>
                     </div>
                 </div>

@@ -2,10 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { useGame } from '@/hooks/useGame';
+import { useLanguage } from '@/providers/LanguageContext';
 import { GeneralState } from '@/types/game';
 
 export default function GeneralView() {
     const { room, me, emitAction, isHost } = useGame();
+    const { t } = useLanguage();
 
     if (!room || room.currentGame !== 'GENERAL') return null;
     const gameState = room.gameState as GeneralState;
@@ -23,6 +25,7 @@ export default function GeneralView() {
 
     const [isRolling, setIsRolling] = useState(false);
     const [displayRoll, setDisplayRoll] = useState<number | null>(null);
+    const [toastMsg, setToastMsg] = useState<{ id: number, message: string } | null>(null);
 
     useEffect(() => {
         if (isRolling) {
@@ -36,10 +39,36 @@ export default function GeneralView() {
     }, [isRolling, gameState.lastRoll]);
 
     useEffect(() => {
-        if (gameState.lastRoll !== null && !isRolling) {
-            setEventLog(prev => [{ id: Date.now(), text: `${currentTurnName} rolled a ${gameState.lastRoll}!` }, ...prev].slice(0, 5));
+        if (gameState.lastRoll !== null && !isRolling && gameState.lastRollerId) {
+            const rollerName = room.players[gameState.lastRollerId]?.name || 'Someone';
+            const isMe = gameState.lastRollerId === me?.id;
+            const subject = isMe ? 'You' : rollerName;
+
+            setEventLog(prev => [{ id: Date.now(), text: `${rollerName} rolled a ${gameState.lastRoll}!` }, ...prev].slice(0, 5));
+
+            const triggerToast = () => {
+                let msg = '';
+                switch (gameState.lastRoll) {
+                    case 1: msg = `${subject} rolled a 1! General level reset. ${isMe ? 'Drink!' : 'They drink!'}`; break;
+                    case 2: msg = `${subject} rolled a 2! ${isMe ? 'Pick someone to drink with you' : 'They pick someone to drink'}`; break;
+                    case 3: msg = `${subject} rolled a 3! ${isMe ? 'Take a drink' : 'They take a drink'}`; break;
+                    case 4: msg = `${subject} rolled a 4! ${subject} ${isMe ? 'are' : 'is'} the new Thumb Master!`; break;
+                    case 5: msg = `${subject} rolled a 5! Mini-Game Time!`; break;
+                    case 6: msg = `${subject} rolled a 6! General Level Up!`; break;
+                }
+
+                const toastId = Date.now();
+                setToastMsg({ id: toastId, message: msg });
+
+                setTimeout(() => {
+                    setToastMsg(current => current?.id === toastId ? null : current);
+                }, 5000);
+            };
+
+            const delayTimer = setTimeout(triggerToast, 1200); // Wait 1.2s to admire the dice result
+            return () => clearTimeout(delayTimer);
         }
-    }, [gameState.lastRoll, currentTurnName, isRolling]);
+    }, [gameState.lastRoll, gameState.lastRollerId, isRolling, me?.id, room.players]);
 
     const handleRoll = () => {
         if (!isMyTurn || gameState.rollPending || isRolling) return;
@@ -71,28 +100,88 @@ export default function GeneralView() {
             <div className="w-full max-w-md mx-auto text-center px-6 mb-4 pt-10 flex-shrink-0 z-10 relative">
                 {isMyTurn ? (
                     <h1 className="text-3xl font-black text-white px-6 py-2 bg-gradient-to-r from-[#0d7ff2] to-[#024f9d] rounded-3xl inline-block shadow-[0_0_20px_rgba(13,127,242,0.4)] animate-pulse">
-                        Your Turn to Roll!
+                        {t('gen.yourTurn')}
                     </h1>
                 ) : (
                     <h1 className="text-2xl font-bold text-gray-300">
-                        {currentTurnName} is rolling...
+                        {t('gen.isRolling', { name: currentTurnName })}
                     </h1>
                 )}
             </div>
 
+            {/* Turn Consequence Toast */}
+            {toastMsg && (
+                <div key={toastMsg.id} className="absolute top-36 inset-x-0 mx-auto w-11/12 max-w-sm z-50 pointer-events-none animate-in slide-in-from-top-10 fade-in duration-500">
+                    <div className="bg-gradient-to-r from-[#f43f5e] to-[#e11d48] text-white font-black px-6 py-4 rounded-3xl shadow-[0_15px_40px_rgba(244,63,94,0.4)] border border-white/20 text-center text-lg leading-tight backdrop-blur-md">
+                        {toastMsg.message}
+                    </div>
+                </div>
+            )}
+
             {/* Main Roll Area */}
             <div className="flex-1 flex flex-col items-center justify-center p-6 w-full max-w-sm mx-auto relative z-10">
 
-                {gameState.lastRoll === 6 && gameState.rollPending ? (
+                {gameState.ruleTieBreaker ? (
+                    <div className="w-full bg-[#1A1A1A] p-6 rounded-[40px] border border-[#f43f5e]/50 shadow-2xl animate-in slide-in-from-bottom-10 space-y-4">
+                        <h2 className="text-2xl font-black text-center text-[#f43f5e]">{t('gen.standoff')}</h2>
+                        <p className="text-center text-gray-400 text-sm">{t('gen.tiedPower')}</p>
+
+                        {/* Stage 1: Suggesting */}
+                        {Object.keys(gameState.ruleTieBreaker.suggestions).length < gameState.ruleTieBreaker.tiedGenerals.length ? (
+                            gameState.ruleTieBreaker.tiedGenerals.includes(me?.id as string) && !gameState.ruleTieBreaker.suggestions[me?.id as string] ? (
+                                <div className="flex flex-col gap-3">
+                                    <input
+                                        type="text"
+                                        id="suggestInput"
+                                        placeholder={t('gen.suggestRule')}
+                                        className="px-4 py-3 rounded-xl bg-[#2a2a2a] border border-[#f43f5e]/30 text-white focus:outline-none focus:border-[#f43f5e]"
+                                    />
+                                    <button
+                                        onClick={() => {
+                                            const input = document.getElementById('suggestInput') as HTMLInputElement;
+                                            if (input && input.value.trim()) {
+                                                emitAction('GENERAL_SUGGEST_RULE', { rule: input.value.trim() });
+                                            }
+                                        }}
+                                        className="w-full bg-[#f43f5e] p-3 rounded-xl font-bold text-white hover:bg-[#e11d48] transition-colors"
+                                    >
+                                        {t('gen.submitSuggestion')}
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="text-center font-bold text-[#b0b0b0] animate-pulse">{t('gen.waitingSuggest')}</div>
+                            )
+                        ) : (
+                            /* Stage 2: Voting */
+                            !gameState.ruleTieBreaker.votes[me?.id as string] ? (
+                                <div className="flex flex-col gap-3 max-h-48 overflow-y-auto">
+                                    <div className="text-center font-bold text-white mb-2">{t('gen.voteRule')}</div>
+                                    {Object.entries(gameState.ruleTieBreaker.suggestions).map(([genId, rule]) => (
+                                        <button
+                                            key={genId}
+                                            onClick={() => emitAction('GENERAL_VOTE_RULE', { targetId: genId })}
+                                            className="w-full bg-[#2a2a2a] p-3 rounded-xl text-left border border-gray-700 hover:border-[#f43f5e] transition-colors"
+                                        >
+                                            <span className="font-bold text-[#f43f5e] block text-xs uppercase mb-1">{t('gen.sRule', { name: room.players[genId]?.name || 'Unknown' })}</span>
+                                            <span className="text-sm font-medium text-white">{rule}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center font-bold text-[#b0b0b0] animate-pulse">{t('gen.waitingVote')}</div>
+                            )
+                        )}
+                    </div>
+                ) : gameState.lastRoll === 6 && gameState.rollPending ? (
                     <div className="w-full bg-[#1A1A1A] p-6 rounded-[40px] border border-[#0d7ff2]/50 shadow-2xl animate-in slide-in-from-bottom-10 space-y-4">
-                        <h2 className="text-2xl font-black text-center text-[#0d7ff2]">General Level Up!</h2>
-                        <p className="text-center text-gray-400">You rolled a 6! You are a higher General. Decree a new rule.</p>
+                        <h2 className="text-2xl font-black text-center text-[#0d7ff2]">{t('gen.levelUp')}</h2>
+                        <p className="text-center text-gray-400">{t('gen.decreeRule')}</p>
                         {isMyTurn ? (
                             <div className="flex flex-col gap-3">
                                 <input
                                     type="text"
                                     id="ruleInput"
-                                    placeholder="e.g. No pointing with fingers..."
+                                    placeholder={t('gen.rulePlaceholder')}
                                     className="px-4 py-3 rounded-xl bg-[#2a2a2a] border border-[#0d7ff2]/30 text-white focus:outline-none focus:border-[#0d7ff2]"
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter') {
@@ -112,31 +201,31 @@ export default function GeneralView() {
                                     }}
                                     className="w-full bg-[#0d7ff2] p-3 rounded-xl font-bold text-white hover:bg-[#0b6bce] transition-colors"
                                 >
-                                    Decree Rule & Roll Again
+                                    {t('gen.decreeSubmit')}
                                 </button>
                             </div>
                         ) : (
-                            <div className="text-center font-bold text-[#b0b0b0] animate-pulse">Waiting for {currentTurnName} to decree a rule...</div>
+                            <div className="text-center font-bold text-[#b0b0b0] animate-pulse">{t('gen.waitingFor', { name: currentTurnName })}</div>
                         )}
                     </div>
                 ) : gameState.lastRoll === 5 && gameState.rollPending ? (
                     <div className="w-full bg-[#1A1A1A] p-6 rounded-[40px] border border-[#22c55e]/50 shadow-2xl animate-in slide-in-from-bottom-10 space-y-4">
-                        <h2 className="text-2xl font-black text-center text-[#22c55e]">Mini-Game Time!</h2>
-                        <p className="text-center text-gray-400">Put down the phones. The Host will allow the game to proceed once real-world rules are met.</p>
+                        <h2 className="text-2xl font-black text-center text-[#22c55e]">{t('gen.minigame')}</h2>
+                        <p className="text-center text-gray-400">{t('gen.minigameDesc')}</p>
                         {isHost ? (
                             <button
                                 onClick={() => emitAction('GENERAL_GAME_END')}
                                 className="w-full bg-[#2a2a2a] p-4 rounded-2xl font-bold text-white hover:bg-[#3a3a3a] active:bg-[#22c55e] transition-colors"
                             >
-                                Wait over. Proceed Next Turn.
+                                {t('gen.proceed')}
                             </button>
                         ) : (
-                            <div className="text-center font-bold text-[#b0b0b0] animate-pulse">Waiting for host...</div>
+                            <div className="text-center font-bold text-[#b0b0b0] animate-pulse">{t('gen.waitingHost')}</div>
                         )}
                     </div>
                 ) : gameState.lastRoll === 2 && gameState.rollPending && isMyTurn ? (
                     <div className="w-full bg-[#1A1A1A] p-6 rounded-[40px] border border-[#f49d25]/50 shadow-2xl animate-in slide-in-from-bottom-10 space-y-4">
-                        <h2 className="text-2xl font-black text-center text-[#f49d25]">Choose a target!</h2>
+                        <h2 className="text-2xl font-black text-center text-[#f49d25]">{t('gen.chooseTarget')}</h2>
                         <div className="grid grid-cols-2 gap-3 max-h-48 overflow-y-auto pr-2">
                             {room.playerOrder.filter(id => id !== me?.id).map(id => (
                                 <button
@@ -168,9 +257,9 @@ export default function GeneralView() {
                                 {['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'][displayRoll - 1]}
                             </div>
                         ) : (
-                            <span className="text-2xl font-black tracking-widest text-white/90">ROLL</span>
+                            <span className="text-2xl font-black tracking-widest text-white/90">{t('gen.roll')}</span>
                         )}
-                        {gameState.rollPending && !isMyTurn && <div className="mt-4 text-sm font-bold text-amber-500 animate-pulse">Action Pending</div>}
+                        {gameState.rollPending && !isMyTurn && <div className="mt-4 text-sm font-bold text-amber-500 animate-pulse">{t('gen.actionPending')}</div>}
                     </button>
                 )}
 
@@ -183,13 +272,13 @@ export default function GeneralView() {
                         onClick={() => setActiveTab('LOG')}
                         className={`text-xs font-bold uppercase tracking-widest pb-1 transition-colors ${activeTab === 'LOG' ? 'text-white border-b-2 border-white' : 'text-gray-500 hover:text-gray-300'}`}
                     >
-                        Game Log
+                        {t('gen.gameLog')}
                     </button>
                     <button
                         onClick={() => setActiveTab('EFFECTS')}
                         className={`text-xs font-bold uppercase tracking-widest pb-1 transition-colors ${activeTab === 'EFFECTS' ? 'text-[#0d7ff2] border-b-2 border-[#0d7ff2]' : 'text-gray-500 hover:text-gray-300'}`}
                     >
-                        Active Effects
+                        {t('gen.activeEffects')}
                     </button>
                 </div>
 
@@ -206,12 +295,12 @@ export default function GeneralView() {
                         <div className="flex flex-col gap-5">
                             {/* Rankings */}
                             <div>
-                                <h4 className="text-[10px] text-gray-500 uppercase tracking-widest mb-2">General Rankings</h4>
+                                <h4 className="text-[10px] text-gray-500 uppercase tracking-widest mb-2">{t('gen.rankings')}</h4>
                                 <div className="flex flex-wrap gap-2">
                                     {room.playerOrder.map(pid => (
                                         <div key={pid} className={`bg-[#1A1A1A] border ${pid === me?.id ? 'border-[#0d7ff2]' : 'border-gray-700'} px-3 py-1.5 rounded-lg shadow-md`}>
                                             <span className={`${pid === me?.id ? 'text-[#0d7ff2]' : 'text-gray-300'} font-bold text-xs uppercase`}>
-                                                {room.players[pid].name}: Level {room.players[pid].generalLevel || 0}
+                                                {room.players[pid].name}: {t('gen.level')} {room.players[pid].generalLevel || 0}
                                             </span>
                                         </div>
                                     ))}
@@ -220,31 +309,27 @@ export default function GeneralView() {
 
                             {/* Pending Thumb Master */}
                             <div>
-                                <h4 className="text-[10px] text-gray-500 uppercase tracking-widest mb-2">Thumb Masters</h4>
+                                <h4 className="text-[10px] text-gray-500 uppercase tracking-widest mb-2">{t('gen.thumbMasters')}</h4>
                                 {room.playerOrder.filter(pid => room.players[pid].isThumbMaster).length > 0 ? (
                                     <div className="flex flex-wrap gap-2">
                                         {room.playerOrder.filter(pid => room.players[pid].isThumbMaster).map(pid => (
                                             <span key={pid} className="text-xs font-bold bg-amber-500/10 text-amber-500 px-3 py-1.5 rounded-lg border border-amber-500/30 flex items-center gap-2">
-                                                <span>👍</span> {room.players[pid].name} pending...
+                                                <span>👍</span> {room.players[pid].name} {t('gen.pending')}
                                             </span>
                                         ))}
                                     </div>
                                 ) : (
-                                    <span className="text-xs text-gray-600 italic">No active thumb masters</span>
+                                    <span className="text-xs text-gray-600 italic">{t('gen.noThumb')}</span>
                                 )}
                             </div>
 
                             {/* Decrees */}
-                            {gameState.rules && gameState.rules.length > 0 && (
+                            {gameState.activeRule && (
                                 <div>
-                                    <h4 className="text-[10px] text-[#0d7ff2] uppercase tracking-widest mb-2">Active Decrees</h4>
-                                    <div className="flex flex-col gap-2">
-                                        {gameState.rules.map((rule, idx) => (
-                                            <div key={idx} className="text-sm text-white font-medium flex items-start gap-3 bg-[#0d7ff2]/10 p-3 rounded-lg border border-[#0d7ff2]/20">
-                                                <span className="text-[#0d7ff2] font-black">{idx + 1}.</span>
-                                                <span className="text-sm leading-tight text-blue-50">{rule}</span>
-                                            </div>
-                                        ))}
+                                    <h4 className="text-[10px] text-[#0d7ff2] uppercase tracking-widest mb-2">{t('gen.activeDecree')}</h4>
+                                    <div className="text-sm text-white font-medium flex items-start gap-3 bg-[#0d7ff2]/10 p-3 rounded-lg border border-[#0d7ff2]/20">
+                                        <span className="text-[#0d7ff2] font-black">👑</span>
+                                        <span className="text-sm leading-tight text-blue-50">{gameState.activeRule}</span>
                                     </div>
                                 </div>
                             )}
@@ -273,7 +358,7 @@ export default function GeneralView() {
                     style={{ animation: 'pulse 0.5s cubic-bezier(0.4, 0, 0.6, 1) infinite' }}
                 >
                     <div className="absolute inset-2 border-[4px] border-white/60 rounded-full"></div>
-                    <span className="text-6xl drop-shadow-xl animate-bounce text-white font-black text-center leading-none">CLICK<br />FAST!</span>
+                    <span className="text-6xl drop-shadow-xl animate-bounce text-white font-black text-center leading-none whitespace-pre-wrap">{t('gen.clickFast')}</span>
                 </button>
             )}
 
