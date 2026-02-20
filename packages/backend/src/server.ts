@@ -17,6 +17,10 @@ app.use(cors({
     methods: ["GET", "POST"]
 }));
 
+app.get('/', (req, res) => {
+    res.send('Party Games Hub Backend is running!');
+});
+
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
