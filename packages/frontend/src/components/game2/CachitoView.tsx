@@ -3,7 +3,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useGame } from '@/hooks/useGame';
 import { CachitoState } from '@/types/game';
-import Header from '@/components/shared/Header';
 
 export default function CachitoView() {
     const { room, me, emitAction } = useGame();

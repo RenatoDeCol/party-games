@@ -3,7 +3,6 @@
 import React from 'react';
 import { useGame } from '@/hooks/useGame';
 import { HigherLowerState } from '@/types/game';
-import Header from '@/components/shared/Header';
 
 const CARD_VALUES = [
     { label: 'A', val: 1 }, { label: '2', val: 2 }, { label: '3', val: 3 }, { label: '4', val: 4 }, { label: '5', val: 5 }, { label: '6', val: 6 },
@@ -102,8 +101,6 @@ export default function HigherLowerView() {
             {/* Background ambient glows */}
             <div className="absolute top-1/4 left-0 w-64 h-64 bg-purple-600/20 rounded-full blur-[100px] pointer-events-none"></div>
             <div className="absolute bottom-1/4 right-0 w-64 h-64 bg-pink-600/20 rounded-full blur-[100px] pointer-events-none"></div>
-
-            <Header />
 
             {/* Header Info */}
             <div className="w-full max-w-md pt-20 text-center space-y-4 relative z-10">

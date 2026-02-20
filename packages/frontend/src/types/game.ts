@@ -72,4 +72,6 @@ export interface GeneralState {
     currentTurnId: string;
     lastRoll: number | null;
     rollPending: boolean;
+    activeThumbRace?: boolean;
+    thumbRaceParticipants?: string[];
 }

@@ -8,6 +8,8 @@ import RoomWaitingView from '@/components/lobby/RoomWaitingView';
 import CachitoView from '@/components/game2/CachitoView';
 import GeneralView from '@/components/game3/GeneralView';
 
+import Header from '@/components/shared/Header';
+
 export default function Home() {
   const { isConnected, room } = useGame();
 
@@ -27,15 +29,24 @@ export default function Home() {
   }
 
   // Route based on Game Type
-  switch (room.currentGame) {
-    case 'HIGHER_LOWER':
-      return <HigherLowerView />;
-    case 'CACHITO':
-      return <CachitoView />;
-    case 'GENERAL':
-      return <GeneralView />;
-    case 'LOBBY':
-    default:
-      return <RoomWaitingView />;
-  }
+  const renderGame = () => {
+    switch (room.currentGame) {
+      case 'HIGHER_LOWER':
+        return <HigherLowerView />;
+      case 'CACHITO':
+        return <CachitoView />;
+      case 'GENERAL':
+        return <GeneralView />;
+      case 'LOBBY':
+      default:
+        return <RoomWaitingView />;
+    }
+  };
+
+  return (
+    <>
+      <Header />
+      {renderGame()}
+    </>
+  );
 }

@@ -158,7 +158,7 @@ io.on('connection', (socket: Socket) => {
                 generalLevel: 0,
                 isThumbMaster: false,
                 dice: [],
-                diceCount: 5
+                diceCount: 0
             };
 
             // Join existing or create new room
@@ -281,7 +281,7 @@ io.on('connection', (socket: Socket) => {
 
     // EXPLICIT LEAVE
     socket.on('leave_room', () => {
-        handleDisconnect(socket.id, true);
+        handleDisconnect(socket.id, false); // changed to false to allow returning if host decides to wait
     });
 
     // DISCONNECT

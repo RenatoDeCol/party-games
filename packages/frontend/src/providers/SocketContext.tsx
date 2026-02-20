@@ -64,14 +64,21 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
         });
 
         newSocket.on('room_update', (updatedRoom: Room) => {
-            setRoom(updatedRoom);
-
             const savedPlayerId = localStorage.getItem('playerId');
+
             if (updatedRoom && savedPlayerId) {
                 const player = updatedRoom.players[savedPlayerId];
                 if (player) {
+                    setRoom(updatedRoom);
                     setMe(player);
+                } else {
+                    // We were kicked or removed from the room
+                    setRoom(null);
+                    setRoomId(null);
+                    setMe(null);
                 }
+            } else {
+                setRoom(updatedRoom);
             }
         });
 
@@ -101,7 +108,6 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
         setRoomId(null);
         setRoom(null);
         setMe(null);
-        localStorage.removeItem('sessionToken');
     };
 
     const startGame = (gameType: GameType, isSinglePlayer?: boolean) => {

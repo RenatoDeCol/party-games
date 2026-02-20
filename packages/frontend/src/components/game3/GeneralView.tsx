@@ -3,10 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { useGame } from '@/hooks/useGame';
 import { GeneralState } from '@/types/game';
-import Header from '@/components/shared/Header';
 
 export default function GeneralView() {
-    const { room, me, emitAction } = useGame();
+    const { room, me, emitAction, isHost } = useGame();
 
     if (!room || room.currentGame !== 'GENERAL') return null;
     const gameState = room.gameState as GeneralState;
@@ -28,18 +27,18 @@ export default function GeneralView() {
 
     const handleRoll = () => {
         if (!isMyTurn || gameState.rollPending) return;
-        emitAction('ROLL_DICE');
+        emitAction('GENERAL_ROLL_DICE');
     };
 
     const handeThumbClick = () => {
         if (isThumbMaster) {
-            emitAction('USE_THUMB');
+            emitAction('GENERAL_USE_THUMB');
         }
     };
 
     const handleChoosePlayer = (playerId: string) => {
         if (!isMyTurn || !gameState.rollPending || gameState.lastRoll !== 2) return;
-        emitAction('CHOOSE_PLAYER', { targetId: playerId });
+        emitAction('GENERAL_CHOOSE_PLAYER', { targetId: playerId });
     };
 
     return (
@@ -47,8 +46,6 @@ export default function GeneralView() {
             {/* Background ambient glows */}
             <div className="absolute top-1/4 left-0 w-64 h-64 bg-[#0d7ff2]/20 rounded-full blur-[120px] pointer-events-none"></div>
             <div className="absolute bottom-1/4 right-0 w-64 h-64 bg-amber-500/20 rounded-full blur-[120px] pointer-events-none"></div>
-
-            <Header />
 
             {/* Header Info */}
             <div className="w-full max-w-md mx-auto text-center px-6 mb-8 pt-16 flex-shrink-0 z-10 relative">
@@ -62,15 +59,36 @@ export default function GeneralView() {
                     </h1>
                 )}
 
-                <div className="mt-4 inline-block bg-[#1A1A1A] border border-[#0d7ff2]/50 px-4 py-2 rounded-full">
-                    <span className="text-[#0d7ff2] font-bold tracking-widest text-sm uppercase">General Level: {me?.generalLevel || 0}</span>
+                <div className="mt-4 flex flex-wrap justify-center gap-2">
+                    {room.playerOrder.map(pid => (
+                        <div key={pid} className={`bg-[#1A1A1A] border ${pid === me?.id ? 'border-[#0d7ff2]' : 'border-gray-700'} px-3 py-1 rounded-full`}>
+                            <span className={`${pid === me?.id ? 'text-[#0d7ff2]' : 'text-gray-400'} font-bold tracking-wider text-xs uppercase`}>
+                                {room.players[pid].name}: {room.players[pid].generalLevel || 0}
+                            </span>
+                        </div>
+                    ))}
                 </div>
             </div>
 
             {/* Main Roll Area */}
             <div className="flex-1 flex flex-col items-center justify-center p-6 w-full max-w-sm mx-auto relative z-10">
 
-                {gameState.lastRoll === 2 && gameState.rollPending && isMyTurn ? (
+                {gameState.lastRoll === 5 && gameState.rollPending ? (
+                    <div className="w-full bg-[#1A1A1A] p-6 rounded-[40px] border border-[#22c55e]/50 shadow-2xl animate-in slide-in-from-bottom-10 space-y-4">
+                        <h2 className="text-2xl font-black text-center text-[#22c55e]">Mini-Game Time!</h2>
+                        <p className="text-center text-gray-400">Put down the phones. The Host will allow the game to proceed once real-world rules are met.</p>
+                        {isHost ? (
+                            <button
+                                onClick={() => emitAction('GENERAL_GAME_END')}
+                                className="w-full bg-[#2a2a2a] p-4 rounded-2xl font-bold text-white hover:bg-[#3a3a3a] active:bg-[#22c55e] transition-colors"
+                            >
+                                Wait over. Proceed Next Turn.
+                            </button>
+                        ) : (
+                            <div className="text-center font-bold text-[#b0b0b0] animate-pulse">Waiting for host...</div>
+                        )}
+                    </div>
+                ) : gameState.lastRoll === 2 && gameState.rollPending && isMyTurn ? (
                     <div className="w-full bg-[#1A1A1A] p-6 rounded-[40px] border border-[#f49d25]/50 shadow-2xl animate-in slide-in-from-bottom-10 space-y-4">
                         <h2 className="text-2xl font-black text-center text-[#f49d25]">Choose a target!</h2>
                         <div className="grid grid-cols-2 gap-3 max-h-48 overflow-y-auto pr-2">
@@ -125,7 +143,7 @@ export default function GeneralView() {
             </div>
 
             {/* THE THUMB BUTTON - CRITICAL COMPONENT */}
-            {isThumbMaster && (
+            {isThumbMaster && !gameState.activeThumbRace && (
                 <button
                     onClick={handeThumbClick}
                     className="fixed bottom-8 right-8 w-28 h-28 bg-gradient-to-tr from-[#fbbf24] via-[#f59e0b] to-[#ea580c] rounded-full shadow-[0_0_60px_rgba(245,158,11,1)] flex items-center justify-center z-[100] hover:scale-110 active:scale-90 transition-transform border-4 border-white/50"
@@ -133,6 +151,18 @@ export default function GeneralView() {
                 >
                     <div className="absolute inset-1 border-[3px] border-white/60 rounded-full"></div>
                     <span className="text-5xl drop-shadow-xl animate-bounce">👍</span>
+                </button>
+            )}
+
+            {/* NEW THUMB RACE BUTTON */}
+            {gameState.activeThumbRace && !gameState.thumbRaceParticipants?.includes(me?.id as string) && (
+                <button
+                    onClick={() => emitAction('GENERAL_THUMB_RACE_CLICK')}
+                    className="fixed inset-0 m-auto w-48 h-48 bg-gradient-to-tr from-[#ef4444] via-[#f43f5e] to-[#dc2626] rounded-full shadow-[0_0_60px_rgba(239,68,68,1)] flex items-center justify-center z-[100] hover:scale-110 active:scale-90 transition-transform border-8 border-white"
+                    style={{ animation: 'pulse 0.5s cubic-bezier(0.4, 0, 0.6, 1) infinite' }}
+                >
+                    <div className="absolute inset-2 border-[4px] border-white/60 rounded-full"></div>
+                    <span className="text-6xl drop-shadow-xl animate-bounce text-white font-black text-center leading-none">CLICK<br />FAST!</span>
                 </button>
             )}
 

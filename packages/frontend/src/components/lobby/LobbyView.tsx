@@ -8,7 +8,6 @@ export default function LobbyView() {
     const { joinRoom, startGame } = useGame();
     const [nickname, setNickname] = useState('');
     const [roomCode, setRoomCode] = useState('');
-    const [isSinglePlayer, setIsSinglePlayer] = useState(false);
 
     const handleJoin = (e: React.FormEvent) => {
         e.preventDefault();
@@ -69,60 +68,20 @@ export default function LobbyView() {
             {/* Host Game Section */}
             <div>
                 <div className="flex justify-between items-center mb-6 px-2">
-                    <h2 className="text-xl font-semibold text-white">Host New Game</h2>
-                    <label className="flex items-center space-x-3 cursor-pointer group">
-                        <div className="relative">
-                            <input
-                                type="checkbox"
-                                className="sr-only"
-                                checked={isSinglePlayer}
-                                onChange={(e) => setIsSinglePlayer(e.target.checked)}
-                            />
-                            <div className={`block w-14 h-8 rounded-full transition-colors duration-300 ${isSinglePlayer ? 'bg-[#256af4]' : 'bg-[#1A1A1A] border border-gray-700'}`}></div>
-                            <div className={`absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform duration-300 ${isSinglePlayer ? 'transform translate-x-6' : ''}`}></div>
-                        </div>
-                        <span className="text-gray-400 group-hover:text-white transition-colors font-medium">Solo Practice Mode</span>
-                    </label>
+                    <h2 className="text-xl font-semibold text-white">Host New Party</h2>
                 </div>
-                <div className="grid gap-4">
-
-                    {/* Game 1: Higher/Lower */}
-                    <button
-                        onClick={() => handleCreateRoom('HIGHER_LOWER')}
-                        className="w-full text-left relative overflow-hidden bg-gradient-to-br from-[#0d9488] to-[#0284c7] rounded-3xl p-6 min-h-[140px] shadow-2xl transition-all active:scale-[0.98] group"
-                    >
-                        <div className="absolute top-0 right-0 p-4 opacity-20 transform translate-x-4 -translate-y-4 group-hover:scale-110 transition-transform">
-                            <span className="text-9xl font-black">?</span>
-                        </div>
-                        <h3 className="text-2xl font-bold text-white mb-2 relative z-10">Higher or Lower</h3>
-                        <p className="text-teal-100/80 font-medium relative z-10">Test your intuition.</p>
-                    </button>
-
-                    {/* Game 2: Cachito */}
-                    <button
-                        onClick={() => handleCreateRoom('CACHITO')}
-                        className="w-full text-left relative overflow-hidden bg-gradient-to-br from-[#dc2626] to-[#f59e0b] rounded-3xl p-6 min-h-[140px] shadow-2xl transition-all active:scale-[0.98] group"
-                    >
-                        <div className="absolute top-0 right-0 p-4 opacity-20 transform translate-x-4 group-hover:scale-110 transition-transform">
-                            <span className="text-8xl font-black">⚄</span>
-                        </div>
-                        <h3 className="text-2xl font-bold text-white mb-2 relative z-10">Cachito</h3>
-                        <p className="text-rose-100/90 font-medium relative z-10">The ultimate bluffing game.</p>
-                    </button>
-
-                    {/* Game 3: General */}
-                    <button
-                        onClick={() => handleCreateRoom('GENERAL')}
-                        className="w-full text-left relative overflow-hidden bg-gradient-to-br from-[#7e22ce] to-[#db2777] rounded-3xl p-6 min-h-[140px] shadow-2xl transition-all active:scale-[0.98] group"
-                    >
-                        <div className="absolute bottom-0 right-0 p-4 opacity-20 transform translate-x-2 translate-y-8 group-hover:scale-110 transition-transform">
-                            <span className="text-9xl font-black">★</span>
-                        </div>
-                        <h3 className="text-2xl font-bold text-white mb-2 relative z-10">General</h3>
-                        <p className="text-fuchsia-100/90 font-medium relative z-10">Challenge friends in categories.</p>
-                    </button>
-
-                </div>
+                <button
+                    onClick={() => handleCreateRoom('LOBBY')}
+                    className="w-full text-left relative overflow-hidden bg-gradient-to-br from-[#7e22ce] to-[#db2777] rounded-3xl p-6 min-h-[140px] shadow-2xl transition-all active:scale-[0.98] group flex items-center justify-center"
+                >
+                    <div className="absolute top-0 right-0 p-4 opacity-20 transform translate-x-4 -translate-y-4 group-hover:scale-110 transition-transform">
+                        <span className="text-9xl font-black">+</span>
+                    </div>
+                    <div className="text-center relative z-10">
+                        <h3 className="text-3xl font-bold text-white mb-2">Create Room</h3>
+                        <p className="text-fuchsia-100/90 font-medium text-lg">Gather your friends and pick a game inside.</p>
+                    </div>
+                </button>
             </div>
         </div>
     );

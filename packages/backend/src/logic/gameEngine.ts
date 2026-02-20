@@ -75,6 +75,8 @@ export interface GeneralState {
     currentTurnId: string;
     lastRoll: number | null;
     rollPending: boolean;
+    activeThumbRace?: boolean;
+    thumbRaceParticipants?: string[];
 }
 
 // ==========================================
@@ -89,9 +91,11 @@ export type PlayerAction =
     | { type: 'CACHITO_NEXT_ROUND' }
     | { type: 'GENERAL_ROLL_DICE' }
     | { type: 'GENERAL_USE_THUMB' }
+    | { type: 'GENERAL_THUMB_RACE_CLICK' }
     | { type: 'GENERAL_CHOOSE_PLAYER'; targetId: string }
     | { type: 'GENERAL_GAME_END' }
-    | { type: 'REORDER_PLAYERS'; playerOrder: string[] };
+    | { type: 'REORDER_PLAYERS'; playerOrder: string[] }
+    | { type: 'KICK_PLAYER'; targetId: string };
 
 
 // ==========================================
@@ -200,6 +204,19 @@ export function validateUseThumb(player: Player): boolean {
 // Helper to advance turn in array (skips disconnected players or players with 0 dice if required)
 function getNextTurnId(currentTurnId: string, playerOrder: string[], activePlayers: Record<string, Player>, requireDice: boolean = false): string {
     const currentIndex = playerOrder.indexOf(currentTurnId);
+
+    if (currentIndex === -1) {
+        // Fallback if current player was removed
+        for (let i = 0; i < playerOrder.length; i++) {
+            const pid = playerOrder[i];
+            const p = activePlayers[pid];
+            if (p?.connectionState === 'CONNECTED' && (!requireDice || p.diceCount > 0)) {
+                return pid;
+            }
+        }
+        return playerOrder[0] || currentTurnId;
+    }
+
     for (let i = 1; i <= playerOrder.length; i++) {
         const nextIndex = (currentIndex + i) % playerOrder.length;
         const nextPlayerId = playerOrder[nextIndex];
@@ -230,6 +247,45 @@ export function reduceRoomState(room: Room, action: PlayerAction, actingPlayerId
     const actingPlayer = nextRoom.players[actingPlayerId];
     if (!actingPlayer) return room; // Invalid player
 
+    // Global Host Actions
+    if (nextRoom.hostId === actingPlayerId) {
+        if (action.type === 'REORDER_PLAYERS') {
+            nextRoom.playerOrder = action.playerOrder;
+            return nextRoom;
+        }
+
+        if (action.type === 'KICK_PLAYER') {
+            const targetId = action.targetId;
+            if (targetId && nextRoom.players[targetId]) {
+                delete nextRoom.players[targetId];
+                nextRoom.playerOrder = nextRoom.playerOrder.filter(id => id !== targetId);
+
+                // Fix up game state turns if the kicked player was currently acting
+                if (nextRoom.currentGame === 'CACHITO') {
+                    const state = nextRoom.gameState as CachitoState;
+                    if (state.currentTurnId === targetId) {
+                        state.currentTurnId = getNextTurnId(targetId, nextRoom.playerOrder, nextRoom.players, true);
+                    }
+                } else if (nextRoom.currentGame === 'GENERAL') {
+                    const state = nextRoom.gameState as GeneralState;
+                    if (state.currentTurnId === targetId) {
+                        state.currentTurnId = getNextTurnId(targetId, nextRoom.playerOrder, nextRoom.players);
+                    }
+                } else if (nextRoom.currentGame === 'HIGHER_LOWER') {
+                    const state = nextRoom.gameState as HigherLowerState;
+                    if (state.guesserId === targetId) {
+                        state.guesserId = getNextTurnId(targetId, nextRoom.playerOrder, nextRoom.players);
+                    }
+                    if (state.holderId === targetId) {
+                        state.holderId = getNextTurnId(targetId, nextRoom.playerOrder, nextRoom.players);
+                    }
+                }
+
+                return nextRoom;
+            }
+        }
+    }
+
     switch (nextRoom.currentGame) {
         case 'HIGHER_LOWER':
             return handleHigherLower(nextRoom, actingPlayerId, action);
@@ -238,17 +294,9 @@ export function reduceRoomState(room: Room, action: PlayerAction, actingPlayerId
         case 'GENERAL':
             return handleGeneral(nextRoom, actingPlayerId, action);
         case 'LOBBY':
-            return handleLobby(nextRoom, actingPlayerId, action);
         default:
             return nextRoom;
     }
-}
-
-function handleLobby(room: Room, playerId: string, action: PlayerAction): Room {
-    if (action.type === 'REORDER_PLAYERS' && room.hostId === playerId) {
-        room.playerOrder = action.playerOrder;
-    }
-    return room;
 }
 
 function handleHigherLower(room: Room, playerId: string, action: PlayerAction): Room {
@@ -380,21 +428,21 @@ function handleCachito(room: Room, playerId: string, action: PlayerAction): Room
             if (totalFound < prevBid.quantity) {
                 // Bid failed, bidder loses a die
                 nextState.loserId = prevBid.playerId;
-                nextState.revealData.reason = `Bid failed! Only found ${totalFound}x ${targetFace}s. ${room.players[prevBid.playerId].name} loses a die.`;
+                nextState.revealData.reason = `Bid failed! Only found ${totalFound}x ${targetFace}s. ${room.players[prevBid.playerId]?.name || 'Someone'} loses a die.`;
             } else {
                 // Bid succeeded, doubter loses a die
                 nextState.loserId = playerId;
-                nextState.revealData.reason = `Bid succeeded! Found ${totalFound}x ${targetFace}s. ${room.players[playerId].name} loses a die.`;
+                nextState.revealData.reason = `Bid succeeded! Found ${totalFound}x ${targetFace}s. ${room.players[playerId]?.name || 'Someone'} loses a die.`;
             }
         } else if (action.type === 'CACHITO_MATCH') {
             if (totalFound === prevBid.quantity) {
                 // Exactly matched: previous bidder loses a die (can be custom rules)
                 nextState.loserId = prevBid.playerId;
-                nextState.revealData.reason = `Exact match! Everyone else was right. ${room.players[prevBid.playerId].name} loses a die.`;
+                nextState.revealData.reason = `Exact match! Everyone else was right. ${room.players[prevBid.playerId]?.name || 'Someone'} loses a die.`;
             } else {
                 // Not exact: caller loses a die
                 nextState.loserId = playerId;
-                nextState.revealData.reason = `Not exact! Found ${totalFound}x ${targetFace}s. ${room.players[playerId].name} loses a die.`;
+                nextState.revealData.reason = `Not exact! Found ${totalFound}x ${targetFace}s. ${room.players[playerId]?.name || 'Someone'} loses a die.`;
             }
         }
 
@@ -447,7 +495,29 @@ function handleGeneral(room: Room, playerId: string, action: PlayerAction): Room
     if (action.type === 'GENERAL_USE_THUMB') {
         if (validateUseThumb(room.players[playerId])) {
             room.players[playerId].isThumbMaster = false;
+            nextState.activeThumbRace = true;
+            nextState.thumbRaceParticipants = [];
         }
+        room.gameState = nextState;
+        return room;
+    }
+
+    if (action.type === 'GENERAL_THUMB_RACE_CLICK') {
+        if (state.activeThumbRace && !state.thumbRaceParticipants?.includes(playerId)) {
+            nextState.thumbRaceParticipants = [...(nextState.thumbRaceParticipants || []), playerId];
+
+            // Validate all currently connected players (excluding the triggerer) have clicked
+            const activePlayers = room.playerOrder.filter(pid =>
+                room.players[pid].connectionState === 'CONNECTED'
+            );
+
+            if (nextState.thumbRaceParticipants.length >= activePlayers.length - 1) {
+                const loserId = activePlayers.find(pid => !nextState.thumbRaceParticipants?.includes(pid)) || playerId;
+                // Race finished! Revert state.
+                nextState.activeThumbRace = false;
+            }
+        }
+        room.gameState = nextState;
         return room;
     }
 
