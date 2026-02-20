@@ -74,4 +74,5 @@ export interface GeneralState {
     rollPending: boolean;
     activeThumbRace?: boolean;
     thumbRaceParticipants?: string[];
+    rules?: string[];
 }

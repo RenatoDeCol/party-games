@@ -77,6 +77,7 @@ export interface GeneralState {
     rollPending: boolean;
     activeThumbRace?: boolean;
     thumbRaceParticipants?: string[];
+    rules?: string[];
 }
 
 // ==========================================
@@ -93,6 +94,7 @@ export type PlayerAction =
     | { type: 'GENERAL_USE_THUMB' }
     | { type: 'GENERAL_THUMB_RACE_CLICK' }
     | { type: 'GENERAL_CHOOSE_PLAYER'; targetId: string }
+    | { type: 'GENERAL_MAKE_RULE'; rule: string }
     | { type: 'GENERAL_GAME_END' }
     | { type: 'REORDER_PLAYERS'; playerOrder: string[] }
     | { type: 'KICK_PLAYER'; targetId: string };
@@ -516,6 +518,15 @@ function handleGeneral(room: Room, playerId: string, action: PlayerAction): Room
                 // Race finished! Revert state.
                 nextState.activeThumbRace = false;
             }
+        }
+        room.gameState = nextState;
+        return room;
+    }
+
+    if (action.type === 'GENERAL_MAKE_RULE') {
+        if (state.rollPending && state.lastRoll === 6 && state.currentTurnId === playerId) {
+            nextState.rules = [...(state.rules || []), action.rule];
+            nextState.rollPending = false;
         }
         room.gameState = nextState;
         return room;
