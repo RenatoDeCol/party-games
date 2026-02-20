@@ -64,6 +64,11 @@ export interface CachitoState {
     currentBid: CachitoBid | null;
     previousBid: CachitoBid | null;
     isObligado: boolean;
+    loserId?: string | null;
+    revealData?: {
+        totalFound: number;
+        reason: string;
+    } | null;
 }
 
 export interface GeneralState {
@@ -81,6 +86,7 @@ export type PlayerAction =
     | { type: 'CACHITO_BID'; quantity: number; faceValue: number; isAces: boolean }
     | { type: 'CACHITO_DOUBT' }
     | { type: 'CACHITO_MATCH' }
+    | { type: 'CACHITO_NEXT_ROUND' }
     | { type: 'GENERAL_ROLL_DICE' }
     | { type: 'GENERAL_USE_THUMB' }
     | { type: 'GENERAL_CHOOSE_PLAYER'; targetId: string }
@@ -191,13 +197,14 @@ export function validateUseThumb(player: Player): boolean {
     return player.isThumbMaster === true;
 }
 
-// Helper to advance turn in array (skips disconnected players)
-function getNextTurnId(currentTurnId: string, playerOrder: string[], activePlayers: Record<string, Player>): string {
+// Helper to advance turn in array (skips disconnected players or players with 0 dice if required)
+function getNextTurnId(currentTurnId: string, playerOrder: string[], activePlayers: Record<string, Player>, requireDice: boolean = false): string {
     const currentIndex = playerOrder.indexOf(currentTurnId);
     for (let i = 1; i <= playerOrder.length; i++) {
         const nextIndex = (currentIndex + i) % playerOrder.length;
         const nextPlayerId = playerOrder[nextIndex];
-        if (activePlayers[nextPlayerId]?.connectionState === 'CONNECTED') {
+        const p = activePlayers[nextPlayerId];
+        if (p?.connectionState === 'CONNECTED' && (!requireDice || p.diceCount > 0)) {
             return nextPlayerId;
         }
     }
@@ -323,7 +330,7 @@ function handleHigherLower(room: Room, playerId: string, action: PlayerAction): 
 function handleCachito(room: Room, playerId: string, action: PlayerAction): Room {
     const state = room.gameState as CachitoState;
 
-    if (action.type !== 'CACHITO_BID' && action.type !== 'CACHITO_DOUBT' && action.type !== 'CACHITO_MATCH') return room;
+    if (action.type !== 'CACHITO_BID' && action.type !== 'CACHITO_DOUBT' && action.type !== 'CACHITO_MATCH' && action.type !== 'CACHITO_NEXT_ROUND') return room;
 
     // Enforce strict turn matching
     if (state.currentTurnId !== playerId) return room;
@@ -344,13 +351,89 @@ function handleCachito(room: Room, playerId: string, action: PlayerAction): Room
 
         nextState.previousBid = nextState.currentBid;
         nextState.currentBid = newBid;
-        nextState.currentTurnId = getNextTurnId(playerId, room.playerOrder, room.players);
+        nextState.currentTurnId = getNextTurnId(playerId, room.playerOrder, room.players, true);
         nextState.status = 'BIDDING';
     }
 
     if (action.type === 'CACHITO_DOUBT' || action.type === 'CACHITO_MATCH') {
+        const prevBid = nextState.currentBid;
+        if (!prevBid) return room; // Cannot doubt/match without a bid
+
+        let totalFound = 0;
+        const targetFace = prevBid.faceValue;
+        const isAces = prevBid.isAces;
+
+        // Count dice across all players
+        Object.values(room.players).forEach(p => {
+            if (p.diceCount > 0) {
+                p.dice.forEach(d => {
+                    if (d === targetFace) totalFound++;
+                    else if (!state.isObligado && !isAces && d === 1) totalFound++; // 1s are wild unless it's Obligado or bidding Aces
+                });
+            }
+        });
+
         nextState.status = 'RESOLVING';
-        // Resolution logic (dice counts updating) happens next in game lifecycle.
+        nextState.revealData = { totalFound, reason: '' };
+
+        if (action.type === 'CACHITO_DOUBT') {
+            if (totalFound < prevBid.quantity) {
+                // Bid failed, bidder loses a die
+                nextState.loserId = prevBid.playerId;
+                nextState.revealData.reason = `Bid failed! Only found ${totalFound}x ${targetFace}s. ${room.players[prevBid.playerId].name} loses a die.`;
+            } else {
+                // Bid succeeded, doubter loses a die
+                nextState.loserId = playerId;
+                nextState.revealData.reason = `Bid succeeded! Found ${totalFound}x ${targetFace}s. ${room.players[playerId].name} loses a die.`;
+            }
+        } else if (action.type === 'CACHITO_MATCH') {
+            if (totalFound === prevBid.quantity) {
+                // Exactly matched: previous bidder loses a die (can be custom rules)
+                nextState.loserId = prevBid.playerId;
+                nextState.revealData.reason = `Exact match! Everyone else was right. ${room.players[prevBid.playerId].name} loses a die.`;
+            } else {
+                // Not exact: caller loses a die
+                nextState.loserId = playerId;
+                nextState.revealData.reason = `Not exact! Found ${totalFound}x ${targetFace}s. ${room.players[playerId].name} loses a die.`;
+            }
+        }
+
+        if (nextState.loserId && room.players[nextState.loserId]) {
+            room.players[nextState.loserId].diceCount = Math.max(0, room.players[nextState.loserId].diceCount - 1);
+        }
+    }
+
+    if (action.type === 'CACHITO_NEXT_ROUND') {
+        if (state.status !== 'RESOLVING') return room;
+
+        // Re-roll dice for everyone still alive
+        Object.values(room.players).forEach(p => {
+            if (p.diceCount > 0) {
+                p.dice = Array.from({ length: p.diceCount }, () => Math.floor(Math.random() * 6) + 1);
+            }
+        });
+
+        nextState.status = 'BIDDING';
+        nextState.currentBid = null;
+        nextState.previousBid = null;
+
+        const loserId = nextState.loserId;
+        nextState.loserId = undefined;
+        nextState.revealData = undefined;
+
+        // Determine next turn: standard is the loser, unless they are eliminated, then the next alive player
+        let nextTurnId = loserId || state.currentTurnId;
+        if (!room.players[nextTurnId] || room.players[nextTurnId].diceCount === 0) {
+            nextTurnId = getNextTurnId(nextTurnId, room.playerOrder, room.players, true);
+        }
+        nextState.currentTurnId = nextTurnId;
+
+        // Check if Obligado (starting player has exactly 1 die)
+        const startingPlayer = room.players[nextState.currentTurnId];
+        nextState.isObligado = startingPlayer ? startingPlayer.diceCount === 1 : false;
+
+        room.gameState = nextState;
+        return room;
     }
 
     room.gameState = nextState;

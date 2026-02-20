@@ -52,7 +52,7 @@ export default function CachitoView() {
 
     const handleBid = () => {
         if (!isMyTurn) return;
-        emitAction('BID', {
+        emitAction('CACHITO_BID', {
             quantity: localBidQuantity,
             faceValue: localBidFace,
             isAces: localBidFace === 1
@@ -105,14 +105,14 @@ export default function CachitoView() {
                     <div className="flex gap-4">
                         <button
                             disabled={!isMyTurn || !gameState.currentBid}
-                            onClick={() => emitAction('DOUBT')}
+                            onClick={() => emitAction('CACHITO_DOUBT')}
                             className="flex-1 min-h-[56px] rounded-2xl bg-gradient-to-r from-[#ef4444] to-[#b91c1c] hover:brightness-110 disabled:opacity-40 disabled:grayscale text-white text-xl font-bold shadow-[0_5px_20px_rgba(239,68,68,0.4)] transition-all active:scale-[0.98]"
                         >
                             Doubt (Dudo)
                         </button>
                         <button
                             disabled={!isMyTurn || !gameState.currentBid}
-                            onClick={() => emitAction('MATCH')}
+                            onClick={() => emitAction('CACHITO_MATCH')}
                             className="flex-1 min-h-[56px] rounded-2xl bg-gradient-to-r from-[#f59e0b] to-[#d97706] hover:brightness-110 disabled:opacity-40 disabled:grayscale text-white text-xl font-bold shadow-[0_5px_20px_rgba(245,158,11,0.4)] transition-all active:scale-[0.98]"
                         >
                             Match (Calzo)
@@ -157,6 +157,30 @@ export default function CachitoView() {
                             className="w-full min-h-[64px] rounded-full bg-gradient-to-r from-[#8b5cf6] to-[#6d28d9] text-white text-2xl font-black shadow-[0_10px_30px_rgba(139,92,246,0.5)] transition-all active:scale-[0.96] active:translate-y-2 border-b-4 border-b-[#4c1d95] uppercase tracking-wide"
                         >
                             Confirm Bid
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Resolving Modal */}
+            {gameState.status === 'RESOLVING' && gameState.revealData && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in p-6">
+                    <div className="w-full max-w-md bg-[#121212] rounded-[40px] border border-gray-700 p-8 shadow-[0_20px_50px_rgba(147,13,242,0.3)] flex flex-col items-center text-center animate-in zoom-in-95 duration-300">
+                        <h2 className="text-3xl font-black text-white mb-4">Round Over!</h2>
+
+                        <div className="w-24 h-24 bg-gradient-to-tr from-[#930df2] to-[#dc2626] rounded-full flex items-center justify-center mb-6 shadow-lg shadow-[#930df2]/30">
+                            <span className="text-5xl font-black text-white">{gameState.revealData.totalFound}</span>
+                        </div>
+
+                        <p className="text-xl text-gray-300 font-bold mb-8">
+                            {gameState.revealData.reason}
+                        </p>
+
+                        <button
+                            onClick={() => emitAction('CACHITO_NEXT_ROUND')}
+                            className="w-full min-h-[64px] rounded-full bg-gradient-to-r from-[#22c55e] to-[#16a34a] hover:brightness-110 text-white text-2xl font-black shadow-[0_10px_30px_rgba(34,197,94,0.4)] transition-all active:scale-[0.96] border-b-4 border-b-[#15803d] uppercase tracking-wide"
+                        >
+                            Next Round
                         </button>
                     </div>
                 </div>

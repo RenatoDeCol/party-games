@@ -61,6 +61,11 @@ export interface CachitoState {
     currentBid: CachitoBid | null;
     previousBid: CachitoBid | null;
     isObligado: boolean;    // Triggered when a player reaches 1 die
+    loserId?: string | null;
+    revealData?: {
+        totalFound: number;
+        reason: string;
+    } | null;
 }
 
 export interface GeneralState {
