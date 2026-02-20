@@ -31,10 +31,16 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
 
     useEffect(() => {
         let socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
+
         if (!socketUrl && typeof window !== 'undefined') {
             socketUrl = `http://${window.location.hostname}:3001`;
         } else if (!socketUrl) {
             socketUrl = 'http://localhost:3001';
+        }
+
+        // Automatic HTTPS upgrade for production
+        if (typeof window !== 'undefined' && window.location.protocol === 'https:' && socketUrl.startsWith('http:')) {
+            socketUrl = socketUrl.replace('http:', 'https:');
         }
 
         const newSocket = io(socketUrl, {
